@@ -27,7 +27,7 @@ CLAUDE.md의 철칙 R1~R8을 이 절차로 강제한다. **각 단계의 검증 
 - `C:\bang` 파이프라인 레포는 명시 요청 없이는 커밋하지 않는다.
 
 ## 5. 배포 검증 게이트 (R4)
-- `gh run list --repo hyunyee/wconcept-dashboard --limit 3`으로 Pages 빌드 성공 확인.
+- `gh run list --repo wckmkt/dashboard --limit 3`으로 Pages 빌드 성공 확인.
 - 실패/멈춤(`Deployment failed, try again later`/무한 queued): `gh run rerun`과 씨름하지 말고 **파이프라인을 한 번 더 실행해 새 데이터 커밋으로 배포를 강제 트리거**한다.
 - 프로덕션 재배포는 비가역 액션이므로 승인 먼저(R5).
 - 라이브 반영은 `curl -s <live-url> | grep <새 코드 마커>`로 확인.

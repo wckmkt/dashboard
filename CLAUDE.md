@@ -4,7 +4,7 @@
 > 아래 철칙(R1~R8)은 "가능하면"이 아니라 **필수 게이트**입니다. 지키기 전엔 "됐다"고 보고하지 마세요.
 
 ## 시스템 개요
-- **대시보드**: `KPI/pmkt-kpi.html` — 단일 파일 정적 SPA(Vanilla JS + Chart.js). GitHub Pages(`https://hyunyee.github.io/wconcept-dashboard/KPI/pmkt-kpi.html`)로 배포. 백엔드 없음.
+- **대시보드**: `KPI/pmkt-kpi.html` — 단일 파일 정적 SPA(Vanilla JS + Chart.js). GitHub Pages(`https://wckmkt.github.io/dashboard/KPI/pmkt-kpi.html`)로 배포. 백엔드 없음.
 - **데이터**: `KPI/pmkt_kpi_data.json` — `C:\bang\gen_realtime_dashboard.py`가 OneDrive Excel 마스터파일을 COM으로 읽어 생성 → git 자동 커밋·push. Windows 작업스케줄러가 하루 5회(09/12/14/16/18시) 구동.
 - **레포 2개(별개 git)**:
   - `C:\bang\hyunyee-dashboard` = 이 레포(대시보드·데이터, 커밋 대상).
@@ -23,7 +23,7 @@
 브라우저에서 관찰 가능한 변경은: preview 서버 리로드 → `preview_console_logs`(에러 0 확인) → **그 탭 자체의 표/패널 숫자와 결과가 일치하는지 대조**까지 마친 뒤 보고한다. 스크린샷은 최종 증빙용, 검증은 텍스트 도구로.
 
 **R4. 배포는 확인한다. 반영됐다고 가정하지 않는다.**
-push 후 `gh run list --repo hyunyee/wconcept-dashboard`로 Pages 빌드 성공을 확인한다. 빌드가 실패/멈추면 `gh run rerun`과 씨름하지 말고 **파이프라인을 한 번 더 돌려 새 데이터 커밋으로 배포를 강제 트리거**한다(검증된 복구법). "알림(Teams)은 오는데 대시보드가 안 바뀜" 증상은 데이터 커밋은 됐는데 **Pages 배포만 실패**한 경우일 수 있으니 이걸 먼저 의심한다.
+push 후 `gh run list --repo wckmkt/dashboard`로 Pages 빌드 성공을 확인한다. 빌드가 실패/멈추면 `gh run rerun`과 씨름하지 말고 **파이프라인을 한 번 더 돌려 새 데이터 커밋으로 배포를 강제 트리거**한다(검증된 복구법). "알림(Teams)은 오는데 대시보드가 안 바뀜" 증상은 데이터 커밋은 됐는데 **Pages 배포만 실패**한 경우일 수 있으니 이걸 먼저 의심한다.
 
 **R5. 외부·비가역 액션은 승인 먼저.**
 Teams 실제 발송, 공개 페이지에 시크릿 커밋, 프로덕션 재배포 등은 AskUserQuestion으로 확인한 뒤 실행한다.
