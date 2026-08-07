@@ -1107,6 +1107,15 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
     <div class="chart-box h240"><canvas id="chart-weekly-coupon"></canvas></div>
   </div>
 
+  <!-- 위 4개(채널 믹스·퍼널 단계·채널별 세션당 조회·쿠폰) 10주 데이터를 한 CSV로.
+       이미 렌더링된 Chart.js 인스턴스의 data를 그대로 읽어 내보낼 뿐, 재계산 없음(R2). -->
+  <div style="display:flex;justify-content:flex-end;margin:-6px 0 14px">
+    <button type="button" onclick="exportWeeklyTrendsCSV()"
+      style="font-size:11px;border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:5px 11px;cursor:pointer;color:#475569">
+      📥 위 4개 차트 CSV 다운로드 (채널 믹스·퍼널 단계·채널별 조회·쿠폰)
+    </button>
+  </div>
+
   <!-- ══ 블록 ④ 채널 기여 : 비중 → 성과 매트릭스 → 채널별 추이 ══ -->
   <div class="sec-hd">
     <h2 style="font-size:14px;--before-color:#10b981">채널 기여</h2>
@@ -3293,6 +3302,44 @@ function renderWeeklyCouponTrend(wkStart = weeklySelStart) {
       },
     },
   });
+}
+
+// ── CSV 내보내기 (채널 믹스·퍼널 단계·채널별 조회·쿠폰 10주 데이터) ──────────
+// 이미 렌더링된 Chart.js 인스턴스의 labels/datasets를 그대로 읽어 표로 바꿀 뿐,
+// 별도 재계산은 하지 않는다(R2) — 4개 차트가 화면과 항상 같은 값을 갖는다.
+function csvEscape(v) {
+  if (v == null) return '';
+  const s = String(v);
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function downloadCSV(filename, rows) {
+  const csv = rows.map(r => r.map(csvEscape).join(',')).join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }); // BOM: 엑셀 한글 깨짐 방지
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function exportWeeklyTrendsCSV() {
+  const charts = [weeklyMixChart, weeklyFunnelChart, weeklyChViewsChart, weeklyCouponChart];
+  if (charts.some(c => !c)) { alert('차트가 아직 준비되지 않았습니다. 잠시 후 다시 시도해주세요.'); return; }
+  const labels = weeklyMixChart.data.labels; // 4개 차트 모두 같은 10주 x축을 공유
+  const header = ['주'];
+  const cols = [];
+  const addChart = (chart, prefix) => {
+    chart.data.datasets.forEach(ds => {
+      header.push(`${prefix}_${ds.label}`);
+      cols.push(ds.data);
+    });
+  };
+  addChart(weeklyMixChart, '채널믹스(%)');
+  addChart(weeklyFunnelChart, '퍼널_APP기준');
+  addChart(weeklyChViewsChart, '채널별세션당조회(건)');
+  addChart(weeklyCouponChart, '쿠폰할인(%)');
+  const rows = [header, ...labels.map((lbl, i) => [lbl, ...cols.map(c => c[i])])];
+  const wkTag = localDateToStr(weeklySelStart).replace(/-/g, '');
+  downloadCSV(`weekly-trend_${wkTag}.csv`, rows);
 }
 
 // ④-1 채널별 비중 — 선택 지표(세션/신규가입/첫구매) 기준 주간 합계 비중
