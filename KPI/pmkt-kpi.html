@@ -1067,6 +1067,16 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
   </div>
   </div>
 
+  <!-- ③-3 퍼널 단계별 전환율 추이 — Daily 탭 "퍼널 흐름" 카드의 3개 단계 전환율(세션당 상품조회·
+       조회→장바구니·장바구니→구매)을 주간 시계열로. computeFunnelCore()(R2, DOM 비접촉 순수 계산)를
+       그대로 재사용 — 매 주를 cur=prev=ly로 동일하게 넣고 cv만 취함(별도 계산 로직 신설 금지).
+       10주 표준과 별개로 5주 창을 명시 요청받아 라벨에 "5주"를 명확히 표기. -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">퍼널 단계별 전환율 · 최근 5주 <span style="font-size:10px;color:#94a3b8;font-weight:400">Daily 탭 "퍼널 흐름"과 동일 지표</span></div>
+    <div class="card-sub">조회→장바구니 · 장바구니→구매 (좌축, %) · 세션당 상품조회 (우축, 건)</div>
+    <div class="chart-box h240"><canvas id="chart-weekly-funnel"></canvas></div>
+  </div>
+
   <!-- ══ 블록 ④ 채널 기여 : 비중 → 성과 매트릭스 → 채널별 추이 ══ -->
   <div class="sec-hd">
     <h2 style="font-size:14px;--before-color:#10b981">채널 기여</h2>
@@ -2662,6 +2672,7 @@ function renderWeekly() {
   renderWeeklyPace(wkStart);
   renderWeeklyTrend(wkStart);
   renderWeeklyCrTrend(wkStart);
+  renderWeeklyFunnelTrend(wkStart);
   renderWeeklyChannelShare(wkStart);
   renderWeeklyChannelMatrix(wkStart);
   renderWeeklyChannelTrend(wkStart);
@@ -3065,6 +3076,52 @@ function renderWeeklyCrTrend(wkStart = weeklySelStart) {
           ticks: { color: '#94a3b8', font: { size: 10 }, callback: v => v + '%' } },
         y1: { min: 0, position: 'right', grid: { display: false }, border: { display: false },
           ticks: { color: '#94a3b8', font: { size: 10 }, callback: v => v + '%' } },
+      },
+    },
+  });
+}
+
+// ③-3 퍼널 단계별 전환율 추이 — Daily "퍼널 흐름" 카드의 3개 연결부 지표를 5주 시계열로.
+// 새 집계 로직 없이 computeFunnelCore(R2, 순수 계산)를 주 단위 range로 호출해 cv만 사용.
+let weeklyFunnelChart = null;
+function renderWeeklyFunnelTrend(wkStart = weeklySelStart) {
+  if (!wkStart) return;
+  const labels = [], s2vi = [], vi2c = [], c2p = [];
+  for (let w = 4; w >= 0; w--) {
+    const s = wkOffset(wkStart, -7 * w);
+    const range = { from: localDateToStr(s), to: localDateToStr(wkOffset(s, 6)) };
+    const { cv } = computeFunnelCore('__total__', false, range, range, range);
+    labels.push(`${wkMD(s)}주`);
+    s2vi.push(cv.s2vi != null ? +cv.s2vi.toFixed(2) : null);
+    vi2c.push(cv.vi2c != null ? +cv.vi2c.toFixed(2) : null);
+    c2p.push(cv.c2p != null ? +cv.c2p.toFixed(2) : null);
+  }
+  const canvas = document.getElementById('chart-weekly-funnel');
+  if (!canvas) return;
+  if (weeklyFunnelChart) { weeklyFunnelChart.destroy(); weeklyFunnelChart = null; }
+  weeklyFunnelChart = new Chart(canvas, {
+    type: 'line',
+    data: { labels, datasets: [
+      { label: '조회→장바구니', data: vi2c, borderColor: '#0ea5e9', backgroundColor: '#0ea5e9',
+        borderWidth: 2, pointRadius: 3, tension: 0.3, spanGaps: true, datalabels: { display: false } },
+      { label: '장바구니→구매', data: c2p, borderColor: '#10b981', backgroundColor: '#10b981',
+        borderWidth: 2, pointRadius: 3, tension: 0.3, spanGaps: true, datalabels: { display: false } },
+      { label: '세션당 상품조회', data: s2vi, borderColor: '#6366f1', backgroundColor: '#6366f1',
+        borderWidth: 2, borderDash: [4, 3], pointRadius: 3, tension: 0.3, spanGaps: true, datalabels: { display: false }, yAxisID: 'y1' },
+    ] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'bottom', labels: { font: { size: 10 }, boxWidth: 10 } },
+        datalabels: { display: false },
+        tooltip: { mode: 'index', intersect: false },
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 9 } } },
+        y: { min: 0, position: 'left', grid: { color: '#f1f5f9' }, border: { display: false },
+          ticks: { color: '#94a3b8', font: { size: 10 }, callback: v => v + '%' } },
+        y1: { min: 0, position: 'right', grid: { display: false }, border: { display: false },
+          ticks: { color: '#94a3b8', font: { size: 10 }, callback: v => v + '건' } },
       },
     },
   });
