@@ -1088,6 +1088,16 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
   </div>
   </div>
 
+  <!-- ③-5 쿠폰·할인 추이 — Daily 탭 "쿠폰·할인 효율"과 같은 정의(쿠폰율/체감할인율)를 10주로.
+       2026-08-07: "전환율에 영향 주는 요인" 요청의 연장 — 채널 믹스·퍼널 단계와 같이 본다.
+       sumCouponRange/couponRate/feltDiscount(기존, DAILY 전사 기준) 그대로 재사용 — 새 계산 없음(R2).
+       쿠폰비는 디바이스로 안 쪼개지므로(광고비 효율과 동일 사유) APP 전용 스코프가 없다. -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">쿠폰·할인 추이 · 최근 10주 <span style="font-size:10px;color:#94a3b8;font-weight:400">Daily 탭 "쿠폰·할인 효율"과 동일 정의 · 전사 기준</span></div>
+    <div class="card-sub">쿠폰율 = 쿠폰비_WCK÷순수주 · 체감할인율 = 쿠폰비(전체)÷쿠폰연관순수주</div>
+    <div class="chart-box h240"><canvas id="chart-weekly-coupon"></canvas></div>
+  </div>
+
   <!-- ══ 블록 ④ 채널 기여 : 비중 → 성과 매트릭스 → 채널별 추이 ══ -->
   <div class="sec-hd">
     <h2 style="font-size:14px;--before-color:#10b981">채널 기여</h2>
@@ -2685,6 +2695,7 @@ function renderWeekly() {
   renderWeeklyCrTrend(wkStart);
   renderWeeklyChannelMixTrend(wkStart);
   renderWeeklyFunnelTrend(wkStart);
+  renderWeeklyCouponTrend(wkStart);
   renderWeeklyChannelShare(wkStart);
   renderWeeklyChannelMatrix(wkStart);
   renderWeeklyChannelTrend(wkStart);
@@ -3174,6 +3185,49 @@ function renderWeeklyFunnelTrend(wkStart = weeklySelStart) {
           ticks: { color: '#94a3b8', font: { size: 10 }, callback: v => v + '%' } },
         y1: { min: 0, position: 'right', grid: { display: false }, border: { display: false },
           ticks: { color: '#94a3b8', font: { size: 10 }, callback: v => v + '건' } },
+      },
+    },
+  });
+}
+
+// ③-5 쿠폰·할인 추이 · 최근 10주 — Daily "쿠폰·할인 효율"의 정의를 그대로 재사용.
+// sumCouponRange/couponRate/feltDiscount(아래 ③-2 쿠폰·할인 효율 섹션, DAILY 전사 기준)를
+// 주 단위 range로 호출만 할 뿐 계산식은 신설하지 않는다(R2).
+let weeklyCouponChart = null;
+function renderWeeklyCouponTrend(wkStart = weeklySelStart) {
+  if (!wkStart) return;
+  const labels = [], rate = [], felt = [];
+  for (let w = 9; w >= 0; w--) {
+    const s = wkOffset(wkStart, -7 * w);
+    const a = sumCouponRange(localDateToStr(s), localDateToStr(wkOffset(s, 6)));
+    labels.push(`${wkMD(s)}주`);
+    const r = couponRate(a), f = feltDiscount(a);
+    rate.push(r != null ? +r.toFixed(2) : null);
+    felt.push(f != null ? +f.toFixed(2) : null);
+  }
+  const canvas = document.getElementById('chart-weekly-coupon');
+  if (!canvas) return;
+  if (weeklyCouponChart) { weeklyCouponChart.destroy(); weeklyCouponChart = null; }
+  weeklyCouponChart = new Chart(canvas, {
+    type: 'line',
+    data: { labels, datasets: [
+      { label: '쿠폰율', data: rate, borderColor: '#6366f1', backgroundColor: '#6366f1',
+        borderWidth: 2, pointRadius: 3, tension: 0.3, spanGaps: true, datalabels: { display: false } },
+      { label: '체감할인율', data: felt, borderColor: '#f43f5e', backgroundColor: '#f43f5e',
+        borderWidth: 2, pointRadius: 3, tension: 0.3, spanGaps: true, datalabels: { display: false } },
+    ] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'bottom', labels: { font: { size: 10 }, boxWidth: 10 } },
+        datalabels: { display: false },
+        tooltip: { mode: 'index', intersect: false, callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y}%` } },
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 9 } } },
+        // beginAtZero:false — Daily 쿠폰·할인 차트와 동일 사유(좁은 대역 변동 관찰).
+        y: { beginAtZero: false, grid: { color: '#f1f5f9' }, border: { display: false },
+          ticks: { color: '#94a3b8', font: { size: 10 }, callback: v => v + '%' } },
       },
     },
   });
