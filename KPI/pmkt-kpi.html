@@ -1067,14 +1067,25 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
   </div>
   </div>
 
-  <!-- ③-3 퍼널 단계별 전환율 추이 — Daily 탭 "퍼널 흐름" 카드의 3개 단계 전환율(세션당 상품조회·
+  <!-- ③-3 채널 믹스 × 퍼널 단계 이탈 — 2026-08-07 사용자 요청: "무엇이 전환율에 영향을 주는지"를
+       채널 구성 변화와 퍼널 단계 이탈을 같은 10주 x축에 나란히 놓고 보고 싶다는 목적. APP 기준 고정.
+       채널 믹스는 aggWeekByChannel(기존 함수, sessApp 필드)을 그대로 씀 — 새 집계 없음(R2). -->
+  <div class="grid-2" style="margin-bottom:14px">
+  <div class="card">
+    <div class="card-title">채널 믹스 · 최근 10주 <span style="font-size:10px;color:#94a3b8;font-weight:400">APP 세션 비중</span></div>
+    <div class="card-sub">100% 누적 — 채널별 APP 세션 비중(%) 변화</div>
+    <div class="chart-box h240"><canvas id="chart-weekly-mix"></canvas></div>
+  </div>
+
+  <!-- ③-4 퍼널 단계별 전환율 추이 — Daily 탭 "퍼널 흐름" 카드의 3개 단계 전환율(세션당 상품조회·
        조회→장바구니·장바구니→구매)을 주간 시계열로. computeFunnelCore()(R2, DOM 비접촉 순수 계산)를
        그대로 재사용 — 매 주를 cur=prev=ly로 동일하게 넣고 cv만 취함(별도 계산 로직 신설 금지).
-       2026-08-07: 처음엔 5주로 시작했다가 다른 카드들과 같은 10주 표준으로 확장. -->
-  <div class="card" style="margin-bottom:14px">
-    <div class="card-title">퍼널 단계별 전환율 · 최근 10주 <span style="font-size:10px;color:#94a3b8;font-weight:400">Daily 탭 "퍼널 흐름"과 동일 지표</span></div>
+       2026-08-07: 5주→10주로 확장 후, 채널 믹스와 나란히 보기 위해 APP 기준(app:true)으로 고정. -->
+  <div class="card">
+    <div class="card-title">퍼널 단계별 전환율 · 최근 10주 <span style="font-size:10px;color:#94a3b8;font-weight:400">APP 기준</span></div>
     <div class="card-sub">조회→장바구니 · 장바구니→구매 (좌축, %) · 세션당 상품조회 (우축, 건)</div>
     <div class="chart-box h240"><canvas id="chart-weekly-funnel"></canvas></div>
+  </div>
   </div>
 
   <!-- ══ 블록 ④ 채널 기여 : 비중 → 성과 매트릭스 → 채널별 추이 ══ -->
@@ -2672,6 +2683,7 @@ function renderWeekly() {
   renderWeeklyPace(wkStart);
   renderWeeklyTrend(wkStart);
   renderWeeklyCrTrend(wkStart);
+  renderWeeklyChannelMixTrend(wkStart);
   renderWeeklyFunnelTrend(wkStart);
   renderWeeklyChannelShare(wkStart);
   renderWeeklyChannelMatrix(wkStart);
@@ -3081,8 +3093,48 @@ function renderWeeklyCrTrend(wkStart = weeklySelStart) {
   });
 }
 
-// ③-3 퍼널 단계별 전환율 추이 — Daily "퍼널 흐름" 카드의 3개 연결부 지표를 10주 시계열로.
+// ③-3 채널 믹스 · 최근 10주 — 채널별 APP 세션 비중(%)을 100% 누적 막대로.
+// aggWeekByChannel(기존 함수, aggChannelRange가 이미 계산하는 sessApp)만 쓰고 새 집계 없음(R2).
+let weeklyMixChart = null;
+function renderWeeklyChannelMixTrend(wkStart = weeklySelStart) {
+  if (!wkStart) return;
+  const labels = [];
+  const series = {}; WK_CH_ORDER.forEach(b => series[b] = []);
+  for (let w = 9; w >= 0; w--) {
+    const s = wkOffset(wkStart, -7 * w);
+    const cur = aggWeekByChannel(s);
+    const total = WK_CH_ORDER.reduce((sum, b) => sum + (cur[b].sessApp || 0), 0);
+    labels.push(`${wkMD(s)}주`);
+    WK_CH_ORDER.forEach(b => series[b].push(total ? +(cur[b].sessApp / total * 100).toFixed(1) : null));
+  }
+  const canvas = document.getElementById('chart-weekly-mix');
+  if (!canvas) return;
+  if (weeklyMixChart) { weeklyMixChart.destroy(); weeklyMixChart = null; }
+  weeklyMixChart = new Chart(canvas, {
+    type: 'bar',
+    data: { labels, datasets: WK_CH_ORDER.map(b => ({
+      label: b, data: series[b], backgroundColor: CH_COLORS[b] || '#cbd5e1', stack: 'mix',
+      datalabels: { display: false },
+    })) },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'bottom', labels: { font: { size: 10 }, boxWidth: 10 } },
+        datalabels: { display: false },
+        tooltip: { mode: 'index', intersect: false, callbacks: { label: c => `${c.dataset.label} ${c.parsed.y}%` } },
+      },
+      scales: {
+        x: { stacked: true, grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 9 } } },
+        y: { stacked: true, min: 0, max: 100, grid: { color: '#f1f5f9' }, border: { display: false },
+          ticks: { color: '#94a3b8', font: { size: 10 }, callback: v => v + '%' } },
+      },
+    },
+  });
+}
+
+// ③-4 퍼널 단계별 전환율 추이 — Daily "퍼널 흐름" 카드의 3개 연결부 지표를 10주 시계열로.
 // 새 집계 로직 없이 computeFunnelCore(R2, 순수 계산)를 주 단위 range로 호출해 cv만 사용.
+// 2026-08-07: 옆 채널 믹스 카드와 같은 스코프로 보기 위해 app:true 고정(전체 스코프 토글 없음).
 let weeklyFunnelChart = null;
 function renderWeeklyFunnelTrend(wkStart = weeklySelStart) {
   if (!wkStart) return;
@@ -3090,7 +3142,7 @@ function renderWeeklyFunnelTrend(wkStart = weeklySelStart) {
   for (let w = 9; w >= 0; w--) {
     const s = wkOffset(wkStart, -7 * w);
     const range = { from: localDateToStr(s), to: localDateToStr(wkOffset(s, 6)) };
-    const { cv } = computeFunnelCore('__total__', false, range, range, range);
+    const { cv } = computeFunnelCore('__total__', true, range, range, range);
     labels.push(`${wkMD(s)}주`);
     s2vi.push(cv.s2vi != null ? +cv.s2vi.toFixed(2) : null);
     vi2c.push(cv.vi2c != null ? +cv.vi2c.toFixed(2) : null);
