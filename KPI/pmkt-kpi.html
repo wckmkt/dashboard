@@ -1094,7 +1094,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
        쿠폰비는 디바이스로 안 쪼개지므로(광고비 효율과 동일 사유) APP 전용 스코프가 없다. -->
   <div class="card" style="margin-bottom:14px">
     <div class="card-title">쿠폰·할인 추이 · 최근 10주 <span style="font-size:10px;color:#94a3b8;font-weight:400">Daily 탭 "쿠폰·할인 효율"과 동일 정의 · 전사 기준</span></div>
-    <div class="card-sub">쿠폰율 = 쿠폰비_WCK÷순수주 · 체감할인율 = 쿠폰비(전체)÷쿠폰연관순수주</div>
+    <div class="card-sub">쿠폰율 = 쿠폰비_WCK÷순수주 · 실선: 금년 / 점선: 전년동주(-364일) · 체감할인율은 범례 클릭 시 표시</div>
     <div class="chart-box h240"><canvas id="chart-weekly-coupon"></canvas></div>
   </div>
 
@@ -3193,17 +3193,23 @@ function renderWeeklyFunnelTrend(wkStart = weeklySelStart) {
 // ③-5 쿠폰·할인 추이 · 최근 10주 — Daily "쿠폰·할인 효율"의 정의를 그대로 재사용.
 // sumCouponRange/couponRate/feltDiscount(아래 ③-2 쿠폰·할인 효율 섹션, DAILY 전사 기준)를
 // 주 단위 range로 호출만 할 뿐 계산식은 신설하지 않는다(R2).
+// 2026-08-07: 체감할인율은 기본 숨김(범례 클릭으로 다시 켤 수 있음) + 전년동주(-364일, 다른
+// Weekly 차트와 동일 오프셋) 비교 라인 추가 — YoY 확인 목적.
 let weeklyCouponChart = null;
 function renderWeeklyCouponTrend(wkStart = weeklySelStart) {
   if (!wkStart) return;
-  const labels = [], rate = [], felt = [];
+  const labels = [], rate = [], rateLy = [], felt = [], feltLy = [];
   for (let w = 9; w >= 0; w--) {
     const s = wkOffset(wkStart, -7 * w);
-    const a = sumCouponRange(localDateToStr(s), localDateToStr(wkOffset(s, 6)));
+    const a  = sumCouponRange(localDateToStr(s), localDateToStr(wkOffset(s, 6)));
+    const ly = sumCouponRange(localDateToStr(wkOffset(s, -364)), localDateToStr(wkOffset(s, -364 + 6)));
     labels.push(`${wkMD(s)}주`);
     const r = couponRate(a), f = feltDiscount(a);
+    const rLy = couponRate(ly), fLy = feltDiscount(ly);
     rate.push(r != null ? +r.toFixed(2) : null);
     felt.push(f != null ? +f.toFixed(2) : null);
+    rateLy.push(rLy != null ? +rLy.toFixed(2) : null);
+    feltLy.push(fLy != null ? +fLy.toFixed(2) : null);
   }
   const canvas = document.getElementById('chart-weekly-coupon');
   if (!canvas) return;
@@ -3213,8 +3219,12 @@ function renderWeeklyCouponTrend(wkStart = weeklySelStart) {
     data: { labels, datasets: [
       { label: '쿠폰율', data: rate, borderColor: '#6366f1', backgroundColor: '#6366f1',
         borderWidth: 2, pointRadius: 3, tension: 0.3, spanGaps: true, datalabels: { display: false } },
+      { label: '쿠폰율 (전년동주)', data: rateLy, borderColor: '#c7d2fe', backgroundColor: '#c7d2fe',
+        borderWidth: 2, borderDash: [4, 3], pointRadius: 2, tension: 0.3, spanGaps: true, datalabels: { display: false } },
       { label: '체감할인율', data: felt, borderColor: '#f43f5e', backgroundColor: '#f43f5e',
-        borderWidth: 2, pointRadius: 3, tension: 0.3, spanGaps: true, datalabels: { display: false } },
+        borderWidth: 2, pointRadius: 3, tension: 0.3, spanGaps: true, datalabels: { display: false }, hidden: true },
+      { label: '체감할인율 (전년동주)', data: feltLy, borderColor: '#fda4af', backgroundColor: '#fda4af',
+        borderWidth: 2, borderDash: [4, 3], pointRadius: 2, tension: 0.3, spanGaps: true, datalabels: { display: false }, hidden: true },
     ] },
     options: {
       responsive: true, maintainAspectRatio: false,
