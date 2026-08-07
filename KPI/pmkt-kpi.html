@@ -539,8 +539,13 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
   <div class="tab-divider"></div>
   <button class="tab-btn" id="tab-weekly" onclick="setWeeklyView(this)">📅 Weekly</button>
   <div class="tab-divider"></div>
-  <button class="tab-btn" id="tab-lever" onclick="setLeverView(this)">🎯 레버 진단</button>
-  <div class="tab-divider"></div>
+  <!-- 2026-08-07: 팀 공유용 대시보드엔 아직 안 올림 — 본인 PC에서만, URL에 ?lever=1 붙여야 보임.
+       기능·데이터는 그대로 두고 탭만 기본 숨김(display:none), 아래 스크립트가 쿼리 확인 후 노출. -->
+  <span id="tab-lever-wrap" style="display:none">
+    <button class="tab-btn" id="tab-lever" onclick="setLeverView(this)">🎯 레버 진단</button>
+    <div class="tab-divider"></div>
+  </span>
+  <script>if (new URLSearchParams(location.search).get('lever') === '1') document.getElementById('tab-lever-wrap').style.display = 'contents';</script>
   <button class="tab-btn annual-tab" onclick="setAnnualView(this)">📅 연간</button>
   <div class="tab-divider"></div>
   <button class="tab-btn" id="tab-period" onclick="setPeriodView(this)">📆 기간조회</button>
