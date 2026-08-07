@@ -1070,9 +1070,9 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
   <!-- ③-3 퍼널 단계별 전환율 추이 — Daily 탭 "퍼널 흐름" 카드의 3개 단계 전환율(세션당 상품조회·
        조회→장바구니·장바구니→구매)을 주간 시계열로. computeFunnelCore()(R2, DOM 비접촉 순수 계산)를
        그대로 재사용 — 매 주를 cur=prev=ly로 동일하게 넣고 cv만 취함(별도 계산 로직 신설 금지).
-       10주 표준과 별개로 5주 창을 명시 요청받아 라벨에 "5주"를 명확히 표기. -->
+       2026-08-07: 처음엔 5주로 시작했다가 다른 카드들과 같은 10주 표준으로 확장. -->
   <div class="card" style="margin-bottom:14px">
-    <div class="card-title">퍼널 단계별 전환율 · 최근 5주 <span style="font-size:10px;color:#94a3b8;font-weight:400">Daily 탭 "퍼널 흐름"과 동일 지표</span></div>
+    <div class="card-title">퍼널 단계별 전환율 · 최근 10주 <span style="font-size:10px;color:#94a3b8;font-weight:400">Daily 탭 "퍼널 흐름"과 동일 지표</span></div>
     <div class="card-sub">조회→장바구니 · 장바구니→구매 (좌축, %) · 세션당 상품조회 (우축, 건)</div>
     <div class="chart-box h240"><canvas id="chart-weekly-funnel"></canvas></div>
   </div>
@@ -3081,13 +3081,13 @@ function renderWeeklyCrTrend(wkStart = weeklySelStart) {
   });
 }
 
-// ③-3 퍼널 단계별 전환율 추이 — Daily "퍼널 흐름" 카드의 3개 연결부 지표를 5주 시계열로.
+// ③-3 퍼널 단계별 전환율 추이 — Daily "퍼널 흐름" 카드의 3개 연결부 지표를 10주 시계열로.
 // 새 집계 로직 없이 computeFunnelCore(R2, 순수 계산)를 주 단위 range로 호출해 cv만 사용.
 let weeklyFunnelChart = null;
 function renderWeeklyFunnelTrend(wkStart = weeklySelStart) {
   if (!wkStart) return;
   const labels = [], s2vi = [], vi2c = [], c2p = [];
-  for (let w = 4; w >= 0; w--) {
+  for (let w = 9; w >= 0; w--) {
     const s = wkOffset(wkStart, -7 * w);
     const range = { from: localDateToStr(s), to: localDateToStr(wkOffset(s, 6)) };
     const { cv } = computeFunnelCore('__total__', false, range, range, range);
