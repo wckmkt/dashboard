@@ -1103,7 +1103,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
        쿠폰비는 디바이스로 안 쪼개지므로(광고비 효율과 동일 사유) APP 전용 스코프가 없다. -->
   <div class="card" style="margin-bottom:14px">
     <div class="card-title">쿠폰·할인 추이 · 최근 10주 <span style="font-size:10px;color:#94a3b8;font-weight:400">Daily 탭 "쿠폰·할인 효율"과 동일 정의 · 전사 기준</span></div>
-    <div class="card-sub">쿠폰율 = 쿠폰비_WCK÷순수주 · 실선: 금년 / 점선: 전년동주(-364일) · 체감할인율은 범례 클릭 시 표시</div>
+    <div class="card-sub">쿠폰율 = 쿠폰비_WCK÷순수주 · 실선: 금년 / 점선: 전년동주(ISO 주차 기준) · 체감할인율은 범례 클릭 시 표시</div>
     <div class="chart-box h240"><canvas id="chart-weekly-coupon"></canvas></div>
   </div>
 
@@ -2545,6 +2545,28 @@ function getWeekStart(d) {
 
 function wkOffset(base, days) { const d = new Date(base); d.setDate(d.getDate() + days); return d; }
 
+// ── ISO 주차 기준 전년동주 ──────────────────────────────────────────────────
+// 2026-08-07: 다른 곳(전환율 추이 등)의 "-364일" 관례는 올해(2026, 53주짜리 해 —
+// 1/1이 목요일)처럼 전년이 53주째인 해를 끼면 실제 ISO 주차보다 1주 밀린다.
+// 이 헬퍼는 해마다 1/4가 속한 주의 월요일을 그 해 1주차로 다시 계산해서
+// "작년 같은 ISO 주차"를 정확히 찾는다 — 방금 만든 채널 믹스·퍼널·채널별 조회·
+// 쿠폰 4개 차트에서만 쓴다(요청 범위, 다른 -364일 관례는 그대로 둠).
+function isoWeek1Monday(year) {
+  const jan4 = new Date(year, 0, 4);
+  return getWeekStart(jan4);
+}
+function isoWeekInfo(monday) {
+  // monday는 항상 그 주의 월요일(로컬 자정) — 목요일 기준으로 ISO 주차연도를 판정
+  const thu = wkOffset(monday, 3);
+  const isoYear = thu.getFullYear();
+  const week = Math.round((monday - isoWeek1Monday(isoYear)) / 6048e5) + 1;
+  return { isoYear, week };
+}
+function isoWeekAgoStart(monday) {
+  const { isoYear, week } = isoWeekInfo(monday);
+  return wkOffset(isoWeek1Monday(isoYear - 1), (week - 1) * 7);
+}
+
 let weeklySelStart = null;      // 선택된 주의 월요일 (Date)
 let weeklyChAdFilter = 'ALL';   // 광고 채널ID 테이블 필터 (ALL/DA/SA)
 let wkCommentText = '';
@@ -3254,8 +3276,9 @@ function renderWeeklyChannelViewsTrend(wkStart = weeklySelStart) {
 // ③-5 쿠폰·할인 추이 · 최근 10주 — Daily "쿠폰·할인 효율"의 정의를 그대로 재사용.
 // sumCouponRange/couponRate/feltDiscount(아래 ③-2 쿠폰·할인 효율 섹션, DAILY 전사 기준)를
 // 주 단위 range로 호출만 할 뿐 계산식은 신설하지 않는다(R2).
-// 2026-08-07: 체감할인율은 기본 숨김(범례 클릭으로 다시 켤 수 있음) + 전년동주(-364일, 다른
-// Weekly 차트와 동일 오프셋) 비교 라인 추가 — YoY 확인 목적.
+// 2026-08-07: 체감할인율은 기본 숨김(범례 클릭으로 다시 켤 수 있음) + 전년동주 비교 라인 추가.
+// 전년동주는 isoWeekAgoStart()(ISO 주차 기준)로 계산 — 다른 곳의 "-364일" 관례는 전년이
+// 53주째 해면 1주 밀리는 문제가 있어(2026이 그 해) 여기선 안 쓴다.
 let weeklyCouponChart = null;
 function renderWeeklyCouponTrend(wkStart = weeklySelStart) {
   if (!wkStart) return;
@@ -3263,7 +3286,8 @@ function renderWeeklyCouponTrend(wkStart = weeklySelStart) {
   for (let w = 9; w >= 0; w--) {
     const s = wkOffset(wkStart, -7 * w);
     const a  = sumCouponRange(localDateToStr(s), localDateToStr(wkOffset(s, 6)));
-    const ly = sumCouponRange(localDateToStr(wkOffset(s, -364)), localDateToStr(wkOffset(s, -364 + 6)));
+    const lyStart = isoWeekAgoStart(s);
+    const ly = sumCouponRange(localDateToStr(lyStart), localDateToStr(wkOffset(lyStart, 6)));
     labels.push(`${wkMD(s)}주`);
     const r = couponRate(a), f = feltDiscount(a);
     const rLy = couponRate(ly), fLy = feltDiscount(ly);
