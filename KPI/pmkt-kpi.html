@@ -1088,6 +1088,15 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
   </div>
   </div>
 
+  <!-- ③-4b 채널별 세션당 상품조회 — 2026-08-07 사용자 요청: APP CVR 상단 퍼널(조회 유인력)을
+       채널별로 쪼개서 이슈 채널을 식별하고 싶다는 목적. computeFunnelCore(ch, app, …)가 이미
+       채널 스코프를 받으므로(Daily 퍼널 채널 선택자와 동일 경로) 새 계산 없이 채널만 순회(R2). -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">채널별 세션당 상품조회 · 최근 10주 <span style="font-size:10px;color:#94a3b8;font-weight:400">APP 기준</span></div>
+    <div class="card-sub">채널별 세션당 상품조회 건수 — 값이 낮은 채널일수록 유입 대비 탐색 유인이 약함</div>
+    <div class="chart-box h240"><canvas id="chart-weekly-ch-views"></canvas></div>
+  </div>
+
   <!-- ③-5 쿠폰·할인 추이 — Daily 탭 "쿠폰·할인 효율"과 같은 정의(쿠폰율/체감할인율)를 10주로.
        2026-08-07: "전환율에 영향 주는 요인" 요청의 연장 — 채널 믹스·퍼널 단계와 같이 본다.
        sumCouponRange/couponRate/feltDiscount(기존, DAILY 전사 기준) 그대로 재사용 — 새 계산 없음(R2).
@@ -2695,6 +2704,7 @@ function renderWeekly() {
   renderWeeklyCrTrend(wkStart);
   renderWeeklyChannelMixTrend(wkStart);
   renderWeeklyFunnelTrend(wkStart);
+  renderWeeklyChannelViewsTrend(wkStart);
   renderWeeklyCouponTrend(wkStart);
   renderWeeklyChannelShare(wkStart);
   renderWeeklyChannelMatrix(wkStart);
@@ -3184,6 +3194,48 @@ function renderWeeklyFunnelTrend(wkStart = weeklySelStart) {
         y: { min: 0, position: 'left', grid: { color: '#f1f5f9' }, border: { display: false },
           ticks: { color: '#94a3b8', font: { size: 10 }, callback: v => v + '%' } },
         y1: { min: 0, position: 'right', grid: { display: false }, border: { display: false },
+          ticks: { color: '#94a3b8', font: { size: 10 }, callback: v => v + '건' } },
+      },
+    },
+  });
+}
+
+// ③-4b 채널별 세션당 상품조회 · 최근 10주 (APP 기준) — computeFunnelCore(R2, 순수 계산)를
+// 채널만 바꿔가며 재호출. 'Ads' 롤업 대신 DA/SA를 분리해서 봐야 어느 매체가 이슈인지 구분됨.
+const WK_FN_CH_ORDER = ['Organic', 'DA', 'SA', 'CRM', 'PCS', '기타'];
+let weeklyChViewsChart = null;
+function renderWeeklyChannelViewsTrend(wkStart = weeklySelStart) {
+  if (!wkStart) return;
+  const labels = [];
+  const series = {}; WK_FN_CH_ORDER.forEach(ch => series[ch] = []);
+  for (let w = 9; w >= 0; w--) {
+    const s = wkOffset(wkStart, -7 * w);
+    const range = { from: localDateToStr(s), to: localDateToStr(wkOffset(s, 6)) };
+    labels.push(`${wkMD(s)}주`);
+    WK_FN_CH_ORDER.forEach(ch => {
+      const { cv } = computeFunnelCore(ch, true, range, range, range);
+      series[ch].push(cv.s2vi != null ? +cv.s2vi.toFixed(2) : null);
+    });
+  }
+  const canvas = document.getElementById('chart-weekly-ch-views');
+  if (!canvas) return;
+  if (weeklyChViewsChart) { weeklyChViewsChart.destroy(); weeklyChViewsChart = null; }
+  weeklyChViewsChart = new Chart(canvas, {
+    type: 'line',
+    data: { labels, datasets: WK_FN_CH_ORDER.map(ch => ({
+      label: ch, data: series[ch], borderColor: CH_COLORS[ch] || '#cbd5e1', backgroundColor: CH_COLORS[ch] || '#cbd5e1',
+      borderWidth: 2, pointRadius: 2, tension: 0.3, spanGaps: true, datalabels: { display: false },
+    })) },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'bottom', labels: { font: { size: 10 }, boxWidth: 10 } },
+        datalabels: { display: false },
+        tooltip: { mode: 'index', intersect: false, callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y}건` } },
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 9 } } },
+        y: { min: 0, grid: { color: '#f1f5f9' }, border: { display: false },
           ticks: { color: '#94a3b8', font: { size: 10 }, callback: v => v + '건' } },
       },
     },
