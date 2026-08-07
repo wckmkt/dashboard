@@ -480,6 +480,42 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
     .chart-grid-2 { grid-template-columns: 1fr; }
   }
 
+  /* ── 레버 진단 탭 (2026-08-07) ── */
+  .bridge{display:flex;align-items:stretch;gap:6px;overflow-x:auto;padding:4px 0}
+  .b-node{flex:0 0 auto;min-width:110px;border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;justify-content:center}
+  .b-node.anchor{background:#f1f5f9;color:#0f172a}
+  .b-node.result{background:#0B1D3A;color:#fff}
+  .b-node .b-lbl{font-size:10px;opacity:.75;margin-bottom:3px}
+  .b-node .b-val{font-size:15px;font-weight:800}
+  .b-arrow{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:92px;padding:0 4px}
+  .b-arrow .b-tag{font-size:9.5px;font-weight:700;color:#64748b;margin-bottom:2px;white-space:nowrap}
+  .b-arrow .b-delta{font-size:12px;font-weight:800;white-space:nowrap}
+  .b-arrow .b-delta.up{color:#10b981}
+  .b-arrow .b-delta.down{color:#ef4444}
+  .lever-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px}
+  .lever{background:#fff;border-radius:10px;padding:14px 15px;box-shadow:0 1px 3px rgba(0,0,0,.06),0 0 0 1px rgba(0,0,0,.04);border-top:3px solid var(--st,#94a3b8)}
+  .lever .l-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+  .lever .l-lbl{font-size:11px;font-weight:700;color:#64748b}
+  .lever .l-pill{font-size:9.5px;font-weight:800;border-radius:20px;padding:2px 8px;color:#fff;background:var(--st,#94a3b8);white-space:nowrap}
+  .lever .l-val{font-size:19px;font-weight:800;color:#0f172a;letter-spacing:-.4px;margin-bottom:3px}
+  .lever .l-sub{font-size:10.5px;color:#94a3b8;line-height:1.5}
+  .lever .l-sub b{font-weight:700}
+  .lever .l-sub b.up{color:#10b981} .lever .l-sub b.down{color:#ef4444}
+  .impact-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f1f5f9}
+  .impact-row:last-child{border-bottom:none}
+  .impact-row .rank{flex:0 0 20px;font-size:11px;font-weight:800;color:#cbd5e1;text-align:center}
+  .impact-row .dot{flex:0 0 8px;height:8px;border-radius:50%}
+  .impact-row .who{flex:0 0 96px;font-size:12px;font-weight:700;color:#0f172a}
+  .impact-row .desc{flex:1;font-size:11.5px;color:#64748b;line-height:1.5}
+  .impact-row .desc b{color:#0f172a;font-weight:700}
+  .impact-row .desc b.down{color:#ef4444} .impact-row .desc b.up{color:#10b981}
+  .impact-row .sev{flex:0 0 auto;font-size:9.5px;font-weight:800;border-radius:20px;padding:3px 10px;white-space:nowrap}
+  .sev-risk{background:#fee2e2;color:#b91c1c}
+  .sev-watch{background:#fef3c7;color:#b45309}
+  .sev-good{background:#d1fae5;color:#047857}
+  .sev-ok{background:#e0e7ff;color:#4338ca}
+  @media (max-width: 1100px) { .lever-grid{grid-template-columns:repeat(2,1fr)} }
+
 </style>
 </head>
 <body>
@@ -502,6 +538,8 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
   <button class="tab-btn active" id="tab-daily">Daily</button>
   <div class="tab-divider"></div>
   <button class="tab-btn" id="tab-weekly" onclick="setWeeklyView(this)">📅 Weekly</button>
+  <div class="tab-divider"></div>
+  <button class="tab-btn" id="tab-lever" onclick="setLeverView(this)">🎯 레버 진단</button>
   <div class="tab-divider"></div>
   <button class="tab-btn annual-tab" onclick="setAnnualView(this)">📅 연간</button>
   <div class="tab-divider"></div>
@@ -1264,6 +1302,69 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
 
 
 </div><!-- /view-ads -->
+
+<!-- ════════ 레버 진단 뷰 (2026-08-07) ════════
+     "매출을 구성하는 레버를 쪼개서 어느 영역에서 문제인지 한눈에" 요청.
+     기존 탭에 흩어진 지표(트래픽·CVR·채널·쿠폰·광고효율)를 한 화면 랭킹으로 모은 것 —
+     계산은 전부 기존 함수 재사용(computeMtdCum/computeFunnelCore/aggChannelRange/
+     sumCouponRange/sumAdcostByChannelRange), 새 데이터 소스 없음. -->
+<div id="view-lever" style="display:none">
+  <div class="sec-hd">
+    <h2 style="--before-color:#0B1D3A">레버 진단 <span style="font-size:11px;color:#94a3b8;font-weight:400">매출 = 트래픽 × 전환율 × 채널믹스·할인</span></h2>
+    <span class="sec-note" id="lv-period-note">MTD 기준</span>
+  </div>
+
+  <!-- ① 매출 브릿지 -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">매출 브릿지</div>
+    <div class="card-sub">목표 → 실적, 레버별 방향(YoY) · ⚠ 정확한 ₩ 배분(승수분해)은 다음 단계 — 지금은 방향·크기만</div>
+    <div class="bridge">
+      <div class="b-node anchor"><div class="b-lbl">목표 순수주</div><div class="b-val" id="lv-b-target">-</div></div>
+      <div class="b-arrow"><span class="b-tag">트래픽</span><span class="b-delta" id="lv-b-traffic">-</span></div>
+      <div class="b-arrow"><span class="b-tag">전환율</span><span class="b-delta" id="lv-b-cvr">-</span></div>
+      <div class="b-arrow"><span class="b-tag">채널 믹스</span><span class="b-delta" id="lv-b-mix">-</span></div>
+      <div class="b-arrow"><span class="b-tag">할인</span><span class="b-delta" id="lv-b-coupon">-</span></div>
+      <div class="b-node result"><div class="b-lbl">실적 순수주</div><div class="b-val" id="lv-b-actual">-</div></div>
+    </div>
+  </div>
+
+  <!-- ② 레버 스코어카드 -->
+  <div class="sec-hd">
+    <h2 style="font-size:14px;--before-color:#6366f1">레버 스코어카드</h2>
+    <span class="sec-note">신호등 = 전월·전년 대비 방향</span>
+  </div>
+  <div class="lever-grid">
+    <div class="lever" id="lv-card-traffic" style="--st:#94a3b8">
+      <div class="l-top"><span class="l-lbl">트래픽(세션)</span><span class="l-pill">-</span></div>
+      <div class="l-val">-</div><div class="l-sub">-</div>
+    </div>
+    <div class="lever" id="lv-card-cvr" style="--st:#94a3b8">
+      <div class="l-top"><span class="l-lbl">전환율(CVR)</span><span class="l-pill">-</span></div>
+      <div class="l-val">-</div><div class="l-sub">-</div>
+    </div>
+    <div class="lever" id="lv-card-mix" style="--st:#94a3b8">
+      <div class="l-top"><span class="l-lbl">채널 믹스</span><span class="l-pill">-</span></div>
+      <div class="l-val">-</div><div class="l-sub">-</div>
+    </div>
+    <div class="lever" id="lv-card-coupon" style="--st:#94a3b8">
+      <div class="l-top"><span class="l-lbl">쿠폰·할인</span><span class="l-pill">-</span></div>
+      <div class="l-val">-</div><div class="l-sub">-</div>
+    </div>
+    <div class="lever" id="lv-card-roas" style="--st:#94a3b8">
+      <div class="l-top"><span class="l-lbl">광고 효율(ROAS)</span><span class="l-pill">-</span></div>
+      <div class="l-val">-</div><div class="l-sub">-</div>
+    </div>
+  </div>
+
+  <!-- ③ 임팩트 랭킹 -->
+  <div class="sec-hd">
+    <h2 style="font-size:14px;--before-color:#ef4444">임팩트 랭킹</h2>
+    <span class="sec-note">채널별 편차(₩, 전월 동기간 대비) 큰 순 · getFunnelDiagnosis(실시간 탭)의 랭킹 방식을 채널 레벨로 확장</span>
+  </div>
+  <div class="card" style="margin-bottom:14px">
+    <div id="lv-impact-body"><div style="text-align:center;color:#94a3b8;padding:12px">데이터 로딩 중...</div></div>
+  </div>
+</div><!-- /view-lever -->
 
 <!-- ════════ 연간 월별 뷰 ════════ -->
 <div id="view-annual" style="display:none">
@@ -2253,7 +2354,7 @@ function renderDailyKPI() {
 }
 
 
-const ALL_VIEWS = ['view-dash', 'view-weekly', 'view-annual', 'view-ads', 'view-realtime', 'view-period'];
+const ALL_VIEWS = ['view-dash', 'view-weekly', 'view-lever', 'view-annual', 'view-ads', 'view-realtime', 'view-period'];
 function showView(viewId, el) {
   ALL_VIEWS.forEach(v => { document.getElementById(v).style.display = v === viewId ? '' : 'none'; });
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -2272,6 +2373,11 @@ function setWeeklyView(el) {
 
 function setRealtimeView(el) {
   showView('view-realtime', el);
+}
+
+function setLeverView(el) {
+  showView('view-lever', el);
+  setTimeout(renderLeverDiag, 0);
 }
 
 function setAnnualView(el) {
@@ -5330,6 +5436,149 @@ function buildMtdTable() {
 
   const periodNote = document.getElementById('mtd-period-note');
   if (periodNote) periodNote.textContent = `${mn}/1~ 기준 · 목표 대비 진도율`;
+}
+
+// ── 레버 진단 (2026-08-07) ──────────────────────────────────────────────
+// "매출을 구성하는 레버를 쪼개서 어느 영역이 문제인지 한눈에" 요청으로 신설한 탭.
+// 새 집계 로직 없이 기존 함수를 MTD 구간(computeMtdCum의 firstDs~ys)에 다시 호출할 뿐이다(R2):
+//   브릿지 앵커 = computeMtdCum(), 트래픽·CVR = computeFunnelCore, 채널 임팩트 = aggChannelRange,
+//   쿠폰 = sumCouponRange/couponRate/feltDiscount, 광고효율 = sumAdcostByChannelRange.
+// getMtdChannelDiagnosis()를 그대로 쓰지 않은 이유: 그 함수는 CH_BUCKET_ORDER(DA+SA를 Ads로
+// 합산)를 쓰기 때문에 "SA만 CVR이 무너진" 것 같은 채널별 원인이 안 보인다 — 승인된 목업이
+// DA/SA를 분리해서 봤으므로, 같은 임계값·정렬 관례(getMtdChannelDiagnosis 참고)를 WK_CH_ORDER
+// (DA/SA 분리) 기준으로 다시 조합한다.
+function renderLeverDiag() {
+  if (!Object.keys(RAW).length) return;
+  const { firstDs, ys, act, tgt } = computeMtdCum();
+  if (!ys) return;
+  const curR = { from: firstDs, to: ys };
+  const momR = mtdRangeOffset(ys, -1);
+  const lyR  = mtdRangeOffset(ys, -12);
+  const md = s => `${+s.substring(5, 7)}/${+s.substring(8, 10)}`;
+
+  const periodNote = document.getElementById('lv-period-note');
+  if (periodNote) periodNote.textContent = `MTD ${md(firstDs)}~${md(ys)} · vs 전월/전년 동기간`;
+
+  const pf   = v => v == null ? '-' : `${v >= 0 ? '+' : ''}${v.toFixed(0)}%`;
+  const pfPP = v => v == null ? '-' : `${v >= 0 ? '+' : ''}${v.toFixed(2)}%p`;
+  const fWon = v => {
+    const a = Math.abs(v), s = v >= 0 ? '+' : '-';
+    return a >= 1e8 ? `${s}${(a / 1e8).toFixed(1)}억원` : `${s}${Math.round(a / 1e4).toLocaleString()}만원`;
+  };
+  const setDelta = (id, val, fmt, inverse = false) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (val == null) { el.textContent = '-'; el.className = 'b-delta'; return; }
+    el.textContent = fmt(val);
+    const good = inverse ? val <= 0 : val >= 0;
+    el.className = 'b-delta ' + (good ? 'up' : 'down');
+  };
+  const setLever = (id, status, val, sub) => {
+    const STATUS = { good: '#10b981', watch: '#f59e0b', risk: '#ef4444' };
+    const LABEL  = { good: '양호', watch: '주의', risk: '위험' };
+    const card = document.getElementById(id);
+    if (!card) return;
+    card.style.setProperty('--st', STATUS[status] || STATUS.watch);
+    card.querySelector('.l-pill').textContent = LABEL[status] || '-';
+    card.querySelector('.l-val').textContent = val;
+    card.querySelector('.l-sub').innerHTML = sub;
+  };
+
+  // ① 매출 브릿지 — 앵커(목표/실적 순수주)
+  const fmtEok = v => (v / 1e8).toFixed(2) + '억';
+  document.getElementById('lv-b-target').textContent = fmtEok(tgt.net || 0);
+  const achPct = tgt.net ? Math.round(act.net / tgt.net * 100) : null;
+  document.getElementById('lv-b-actual').textContent = `${fmtEok(act.net || 0)}${achPct != null ? ' · ' + achPct + '%' : ''}`;
+
+  // 트래픽 · 전환율 — computeFunnelCore 재사용(전체 채널, 전체 디바이스 기준)
+  const { cm, lz, cv, pv, yv } = computeFunnelCore('__total__', false, curR, momR, lyR);
+  const sessYoyPct = (cm.s && lz.s) ? (cm.s - lz.s) / lz.s * 100 : null;
+  const cvrMomPP   = (cv.s2p != null && pv.s2p != null) ? cv.s2p - pv.s2p : null;
+  const cvrYoyPP   = (cv.s2p != null && yv.s2p != null) ? cv.s2p - yv.s2p : null;
+  setDelta('lv-b-traffic', sessYoyPct, v => `세션 ${v >= 0 ? '+' : ''}${v.toFixed(0)}%`);
+  setDelta('lv-b-cvr', cvrYoyPP, v => `CVR ${v >= 0 ? '+' : ''}${v.toFixed(2)}%p`);
+  setLever('lv-card-traffic', sessYoyPct != null && sessYoyPct >= 0 ? 'good' : 'watch',
+    cm.s ? cm.s.toLocaleString() : '-', `YoY <b class="${sessYoyPct >= 0 ? 'up' : 'down'}">${pf(sessYoyPct)}</b>`);
+  setLever('lv-card-cvr', cvrYoyPP != null && cvrYoyPP < -0.3 ? 'risk' : (cvrMomPP != null && cvrMomPP < 0 ? 'watch' : 'good'),
+    cv.s2p != null ? cv.s2p.toFixed(2) + '%' : '-',
+    `전월비 <b class="${(cvrMomPP || 0) >= 0 ? 'up' : 'down'}">${pfPP(cvrMomPP)}</b> · 전년비 <b class="${(cvrYoyPP || 0) >= 0 ? 'up' : 'down'}">${pfPP(cvrYoyPP)}</b>`);
+
+  // 채널 믹스 — aggChannelRange(WK_CH_ORDER, DA/SA 분리)로 채널별 임팩트 랭킹 구성
+  const chCur = aggChannelRange(curR.from, curR.to);
+  const chMom = aggChannelRange(momR.from, momR.to);
+  const chLy  = aggChannelRange(lyR.from, lyR.to);
+  const rows = [];
+  WK_CH_ORDER.forEach(ch => {
+    const c = chCur[ch] || {}, m = chMom[ch] || {}, l = chLy[ch] || {};
+    const sc = c.sess || 0, sm = m.sess || 0, sl = l.sess || 0;
+    if (!sc && !sm && !sl) return;
+    const oc = c.orders || 0, om = m.orders || 0, ol = l.orders || 0;
+    const rc = c.rev || 0, rm = m.rev || 0;
+    const sessMomPct = sm ? (sc - sm) / sm * 100 : null;
+    const sessYoyPctC = sl ? (sc - sl) / sl * 100 : null;
+    const cvrCur = sc ? oc / sc * 100 : null;
+    const cvrMom = sm ? om / sm * 100 : null;
+    const cvrLy  = sl ? ol / sl * 100 : null;
+    const cvrMomPPC = (cvrCur != null && cvrMom != null) ? cvrCur - cvrMom : null;
+    const cvrYoyPPC  = (cvrCur != null && cvrLy  != null) ? cvrCur - cvrLy  : null;
+    const impact = rc - rm; // 전월 동기간 대비 매출 편차(₩) — getMtdChannelDiagnosis와 동일 관례
+    let sev = 'ok';
+    if (cvrYoyPPC != null && cvrYoyPPC <= -0.5 && sessYoyPctC != null && sessYoyPctC >= 20) sev = 'risk';
+    else if (cvrCur != null && cv.s2p && cvrCur >= cv.s2p * 3) sev = 'good';
+    else if (impact < 0) sev = 'watch';
+    rows.push({ ch, sessMomPct, sessYoyPctC, cvrCur, cvrMomPPC, cvrYoyPPC, impact, sev });
+  });
+  rows.sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact));
+
+  const worst = rows.find(r => r.sev === 'risk') || rows[0];
+  if (worst) {
+    setDelta('lv-b-mix', worst.sev === 'risk' ? -1 : 1,
+      () => `${worst.ch} ${pf(worst.sessYoyPctC)}·CVR${pfPP(worst.cvrYoyPPC)}`);
+    setLever('lv-card-mix', worst.sev === 'risk' ? 'risk' : (worst.sev === 'watch' ? 'watch' : 'good'),
+      worst.ch,
+      `세션 <b class="${(worst.sessYoyPctC || 0) >= 0 ? 'up' : 'down'}">${pf(worst.sessYoyPctC)}</b> · CVR <b class="${(worst.cvrYoyPPC || 0) >= 0 ? 'up' : 'down'}">${pfPP(worst.cvrYoyPPC)}</b>`);
+  }
+
+  // 쿠폰·할인 — sumCouponRange/couponRate/feltDiscount 재사용(Daily "쿠폰·할인 효율"과 동일 정의)
+  const coupCur = sumCouponRange(curR.from, curR.to);
+  const coupLy  = sumCouponRange(lyR.from, lyR.to);
+  const cRate = couponRate(coupCur), fDisc = feltDiscount(coupCur), fDiscLy = feltDiscount(coupLy);
+  const fDiscYoyPP = (fDisc != null && fDiscLy != null) ? fDisc - fDiscLy : null;
+  setDelta('lv-b-coupon', fDiscYoyPP, v => `할인율 ${v >= 0 ? '+' : ''}${v.toFixed(1)}%p`, true);
+  setLever('lv-card-coupon', (fDiscYoyPP != null && fDiscYoyPP > 3) ? 'watch' : 'good',
+    cRate != null ? cRate.toFixed(2) + '%' : '-',
+    `체감할인율 <b class="${(fDiscYoyPP || 0) <= 0 ? 'up' : 'down'}">${pfPP(fDiscYoyPP)}</b> 전년비`);
+
+  // 광고 효율(ROAS) — sumAdcostByChannelRange + aggChannelRange(DA/SA rev) 재사용, Daily "광고비 효율"과 동일 산식
+  const adCur = sumAdcostByChannelRange(curR.from, curR.to);
+  const adMom = sumAdcostByChannelRange(momR.from, momR.to);
+  const adSpendCur = adCur.da + adCur.sa, adSpendMom = adMom.da + adMom.sa;
+  const revAdsCur = (chCur.DA?.rev || 0) + (chCur.SA?.rev || 0);
+  const revAdsMom = (chMom.DA?.rev || 0) + (chMom.SA?.rev || 0);
+  const roasCur = adSpendCur ? revAdsCur / adSpendCur * 100 : null;
+  const roasMom = adSpendMom ? revAdsMom / adSpendMom * 100 : null;
+  const roasMomPct = (roasCur != null && roasMom) ? (roasCur - roasMom) / roasMom * 100 : null;
+  setLever('lv-card-roas', (roasMomPct != null && roasMomPct < -10) ? 'watch' : 'good',
+    roasCur != null ? roasCur.toFixed(0) + '%' : '-',
+    `전월비 <b class="${(roasMomPct || 0) >= 0 ? 'up' : 'down'}">${pf(roasMomPct)}</b>`);
+
+  // ③ 임팩트 랭킹 (상위 5)
+  const CH_DOT = { Organic:'#3b82f6', DA:'#06b6d4', SA:'#10b981', CRM:'#f59e0b', PCS:'#f43f5e', OwnedMedia:'#94a3b8', 기타:'#cbd5e1' };
+  const SEV = { risk: ['위험', 'sev-risk'], watch: ['주의', 'sev-watch'], good: ['기회', 'sev-good'], ok: ['양호', 'sev-ok'] };
+  const body = document.getElementById('lv-impact-body');
+  if (body) {
+    const top = rows.slice(0, 5);
+    body.innerHTML = top.length ? top.map((r, i) => {
+      const [lbl, cls] = SEV[r.sev];
+      return `<div class="impact-row">
+        <div class="rank">${i + 1}</div>
+        <div class="dot" style="background:${CH_DOT[r.ch] || '#cbd5e1'}"></div>
+        <div class="who">${r.ch}</div>
+        <div class="desc">세션 YoY <b class="${(r.sessYoyPctC || 0) >= 0 ? 'up' : 'down'}">${pf(r.sessYoyPctC)}</b> · CVR YoY <b class="${(r.cvrYoyPPC || 0) >= 0 ? 'up' : 'down'}">${pfPP(r.cvrYoyPPC)}</b> · 전월비 매출 임팩트 ${fWon(r.impact)}</div>
+        <span class="sev ${cls}">${lbl}</span>
+      </div>`;
+    }).join('') : '<div style="text-align:center;color:#94a3b8;padding:12px">데이터 없음</div>';
+  }
 }
 
 // ── ROAS / 광고비 차트 ──
