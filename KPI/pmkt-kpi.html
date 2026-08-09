@@ -105,6 +105,14 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
    참고 칩으로 분리(승인됨) — 오버플로우 배지·빗금 로직 자체가 필요 없어짐 */
 .chip-row{display:flex;align-items:center;gap:10px;background:#f8fafc;border:1px dashed #e2e8f0;border-radius:8px;padding:8px 12px;margin:0 0 14px;font-size:11.5px;color:#475569}
 .chip-row b{color:#0f172a;font-weight:700}
+/* 2026-08-10: 상품조회 칩 자리가 세션→장바구니 막대 흐름 사이에서 애매해 기본 숨김 + 클릭 토글 */
+.chip-toggle{display:flex;align-items:center;gap:6px;font-size:11px;color:#64748b;font-weight:600;padding:2px 2px 8px;cursor:pointer;user-select:none}
+.chip-toggle:hover{color:#0f172a}
+.chip-chevron{color:#94a3b8;font-size:9px;transition:transform .2s}
+.chip-toggle.open .chip-chevron{transform:rotate(90deg)}
+/* Organic 코멘트 — 카드 최상단으로 옮기며 중요도에 맞게 강조 박스로 */
+.funnel-organic-note{font-size:11.5px;color:#334155;font-weight:600;background:#eff6ff;border-left:3px solid #3b82f6;border-radius:0 6px 6px 0;padding:8px 12px;margin-bottom:14px}
+.funnel-organic-note:empty{display:none}
 /* 2026-08-09: 퍼널 흐름 카드 개선(승인됨) — 막대·마커 호버 툴팁 + 세션보다 큰 단계(상품조회) 배지 */
 .funnel-bar[data-tooltip]:hover::after, .fi-mark[data-tooltip]:hover::after{
   content:attr(data-tooltip); position:absolute; left:50%; transform:translateX(-50%);
@@ -746,7 +754,8 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
   <div class="grid-32" style="margin-bottom:14px">
     <div class="card">
       <div class="card-title">퍼널 흐름</div>
-      <div class="card-sub" id="fn-flow-sub">세션 → 상품조회 → 장바구니 → 구매완료 · 당월 일평균 · 막대 폭 = 세션 대비 규모(√스케일) · 막대·마커 호버 시 숫자 표시</div>
+      <div class="card-sub" id="fn-flow-sub">세션 → 상품조회 → 장바구니 → 구매완료</div>
+      <div class="funnel-organic-note" id="fn-organic-note"></div>
       <div class="funnel-stage">
         <div class="funnel-stage-head"><span class="funnel-stage-lbl">세션</span><span class="funnel-stage-val" id="fn-sess-val">-</span></div>
         <div class="funnel-bar-bg" style="overflow:visible;position:relative">
@@ -756,8 +765,9 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
         </div>
         <div class="funnel-stage-delta" id="fn-sess-delta"></div>
       </div>
-      <div class="chip-row">
-        <span id="fn-s2vi-lbl">🔍 세션당 상품조회 -건</span>
+      <div class="chip-toggle" onclick="toggleFunnelChip('', this)"><span>🔍 상품조회 지표</span><span class="chip-chevron">▸</span></div>
+      <div class="chip-row" id="fn-view-chip-body" style="display:none">
+        <span id="fn-s2vi-lbl">세션당 상품조회 -건</span>
       </div>
       <div class="funnel-connector">
         <span id="fn-vi2c-lbl">조회→장바구니담기 -%</span>
@@ -784,7 +794,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
         <div class="funnel-stage-delta" id="fn-purchase-delta"></div>
       </div>
       <div class="funnel-total" id="fn-s2p-total">세션→구매 -%</div>
-      <div id="fn-organic-note" style="font-size:11px;color:#64748b;margin-top:8px;padding-top:8px;border-top:1px solid #f1f5f9"></div>
+      <div style="font-size:10px;color:#cbd5e1;margin-top:8px">당월 일평균 · 막대 폭 = 세션 대비 규모(√스케일) · 막대·마커 호버 시 숫자 표시</div>
     </div>
     <div class="card">
       <div class="card-title">전환율</div>
@@ -1706,7 +1716,8 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
         </div>
         <div class="funnel-stage-delta" id="pdfn-sess-delta"></div>
       </div>
-      <div class="chip-row"><span id="pdfn-s2vi-lbl">🔍 세션당 상품조회 -건</span></div>
+      <div class="chip-toggle" onclick="toggleFunnelChip('pd', this)"><span>🔍 상품조회 지표</span><span class="chip-chevron">▸</span></div>
+      <div class="chip-row" id="pdfn-view-chip-body" style="display:none"><span id="pdfn-s2vi-lbl">세션당 상품조회 -건</span></div>
       <div class="funnel-connector"><span id="pdfn-vi2c-lbl">조회→장바구니담기 -%</span></div>
       <div class="funnel-stage">
         <div class="funnel-stage-head"><span class="funnel-stage-lbl">장바구니</span><span class="funnel-stage-val" id="pdfn-cart-val">-</span></div>
@@ -1728,6 +1739,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
         <div class="funnel-stage-delta" id="pdfn-purchase-delta"></div>
       </div>
       <div class="funnel-total" id="pdfn-s2p-total">세션→구매 -%</div>
+      <div style="font-size:10px;color:#cbd5e1;margin-top:8px" id="pdfn-flow-foot">막대 폭 = 세션 대비 규모(√스케일) · 막대·마커 호버 시 숫자 표시</div>
     </div>
     <div class="card">
       <div class="card-title">전환율</div>
@@ -7430,6 +7442,15 @@ function render() {
 // ── 전환 퍼널 (4단계 · 당월 일평균 · 전월/전년동월 동기간 비교) ──────────
 // 세션/상품조회/장바구니/구매는 TRAFFIC, 신규가입·첫구매는 CONV_CH(트래픽 보유일만 매칭)
 // APP 스코프 시 TRAFFIC/CONV_CH의 device.app 사용. 비교는 모두 동기간(1일~경과일) 일평균.
+// 상품조회 칩 토글 — Daily(pfx='')/기간조회(pfx='pd') 공용
+function toggleFunnelChip(pfx, el) {
+  const body = document.getElementById(`${pfx}fn-view-chip-body`);
+  if (!body) return;
+  const open = body.style.display === 'none';
+  body.style.display = open ? 'flex' : 'none';
+  el.classList.toggle('open', open);
+}
+
 let funnelDevScope = 'all'; // 'all' | 'app'
 function setFunnelDevScope(scope, btn) {
   funnelDevScope = scope;
@@ -7473,9 +7494,9 @@ function renderOrganicFunnelNote(curR, lyR, app) {
   const cTxt = `${cvrYoyPP >= 0 ? '+' : ''}${cvrYoyPP.toFixed(2)}%p`;
   let icon, sentence;
   if (sessYoyPct < 0 && cvrYoyPP > 0) {
-    icon = '⚖️'; sentence = `Organic 구매전환율은 전년比 ${cTxt} 개선됐지만 세션수는 ${sTxt} 감소 — 유입 감소를 전환 개선이 상쇄`;
+    icon = '⚖️'; sentence = `Organic 구매전환율은 전년比 ${cTxt} 개선됐지만 세션수는 ${sTxt} 감소`;
   } else if (sessYoyPct > 0 && cvrYoyPP < 0) {
-    icon = '⚖️'; sentence = `Organic 세션은 전년比 ${sTxt} 늘었지만 구매전환율은 ${cTxt} 하락 — 유입 증가를 전환 저하가 상쇄`;
+    icon = '⚖️'; sentence = `Organic 세션은 전년比 ${sTxt} 늘었지만 구매전환율은 ${cTxt} 하락`;
   } else if (sessYoyPct >= 0 && cvrYoyPP >= 0) {
     icon = '📈'; sentence = `Organic 세션 ${sTxt} · 구매전환율 ${cTxt} 모두 전년比 개선`;
   } else {
@@ -7684,7 +7705,7 @@ function renderPeriodFunnel() {
   setHtml('pdfx-cmp-leg',
     `막대 = 선택 기간 · <span style="color:#f59e0b;font-weight:700">┃</span> ${prevLbl} 동기간 · <span style="font-weight:700">┊</span> 전년 동기간 · 증감은 %p`);
   const sub = document.getElementById('pdfn-flow-sub');
-  if (sub) sub.textContent = `세션 → 상품조회 → 장바구니 → 구매완료 · ${from} ~ ${to} 일평균 · 막대 폭 = 세션 대비 규모(√스케일) · 막대·마커 호버 시 숫자 표시`;
+  if (sub) sub.textContent = `세션 → 상품조회 → 장바구니 → 구매완료 · ${from} ~ ${to} 일평균`;
 
   return result;
 }
