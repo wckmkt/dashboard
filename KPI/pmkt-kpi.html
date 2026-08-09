@@ -781,6 +781,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
         </div>
       </div>
       <div class="funnel-total" id="fn-s2p-total">세션→구매 -%</div>
+      <div id="fn-organic-note" style="font-size:11px;color:#64748b;margin-top:8px;padding-top:8px;border-top:1px solid #f1f5f9"></div>
     </div>
     <div class="card">
       <div class="card-title">전환율</div>
@@ -7449,11 +7450,39 @@ function buildFunnelFromTraffic() {
   };
   const pmY = mn === 1 ? yr - 1 : yr, pmM = mn === 1 ? 12 : mn - 1;
   const sel = document.getElementById('funnel-ch-sel');
+  const curR = rangeOf(yr, mn), prevR = rangeOf(pmY, pmM), lyR = rangeOf(yr - 1, mn);
   renderFunnelBlock({
     pfx: '', ch: sel ? sel.value : '__total__', app: funnelDevScope === 'app',
-    cur: rangeOf(yr, mn), prev: rangeOf(pmY, pmM), ly: rangeOf(yr - 1, mn),
+    cur: curR, prev: prevR, ly: lyR,
     prevLbl: '전월', lyLbl: '전년', unitLbl: '/일',
   });
+  renderOrganicFunnelNote(curR, lyR);
+}
+
+// 2026-08-09: 퍼널 흐름 카드는 선택한 채널로 스코프가 바뀌지만, Organic은 항상 최대
+// 채널(세션 60%+)이라 선택과 무관하게 상시 코멘트로 노출해달라는 요청 — computeFunnelCore를
+// Organic으로 고정 호출만 할 뿐 계산은 새로 만들지 않는다(R2). 세션 YoY·CVR YoY의 부호
+// 조합으로 "유입은 늘었는데 전환이 빠졌다"류의 상쇄 패턴까지 짚어준다.
+function renderOrganicFunnelNote(curR, lyR) {
+  const el = document.getElementById('fn-organic-note');
+  if (!el) return;
+  const { cm, lz, cv, yv } = computeFunnelCore('Organic', false, curR, curR, lyR);
+  const sessYoyPct = (cm.s && lz.s) ? (cm.s - lz.s) / lz.s * 100 : null;
+  const cvrYoyPP = (cv.s2p != null && yv.s2p != null) ? cv.s2p - yv.s2p : null;
+  if (sessYoyPct == null || cvrYoyPP == null) { el.textContent = ''; return; }
+  const sTxt = `${sessYoyPct >= 0 ? '+' : ''}${sessYoyPct.toFixed(0)}%`;
+  const cTxt = `${cvrYoyPP >= 0 ? '+' : ''}${cvrYoyPP.toFixed(2)}%p`;
+  let icon, sentence;
+  if (sessYoyPct < 0 && cvrYoyPP > 0) {
+    icon = '⚖️'; sentence = `Organic 구매전환율은 전년比 ${cTxt} 개선됐지만 세션수는 ${sTxt} 감소 — 유입 감소를 전환 개선이 상쇄`;
+  } else if (sessYoyPct > 0 && cvrYoyPP < 0) {
+    icon = '⚖️'; sentence = `Organic 세션은 전년比 ${sTxt} 늘었지만 구매전환율은 ${cTxt} 하락 — 유입 증가를 전환 저하가 상쇄`;
+  } else if (sessYoyPct >= 0 && cvrYoyPP >= 0) {
+    icon = '📈'; sentence = `Organic 세션 ${sTxt} · 구매전환율 ${cTxt} 모두 전년比 개선`;
+  } else {
+    icon = '📉'; sentence = `Organic 세션 ${sTxt} · 구매전환율 ${cTxt} 모두 전년比 하락`;
+  }
+  el.innerHTML = `${icon} ${sentence}`;
 }
 
 // 2026-07-30: Daily의 전환 퍼널을 기간조회 탭에도 넣으면서 계산부를 공통 코어로 분리했다(R2).
