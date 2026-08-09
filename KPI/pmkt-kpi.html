@@ -91,6 +91,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
 .funnel-stage-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}
 .funnel-stage-lbl{font-size:12px;font-weight:700;color:#0f172a}
 .funnel-stage-val{font-size:15px;font-weight:800;color:#0f172a}
+.funnel-stage-right{text-align:right}
 .funnel-stage-delta{font-size:10px;color:#94a3b8;font-weight:600;margin-left:6px}
 .funnel-stage-delta b{font-weight:700}
 .funnel-stage-delta b.up{color:#16a34a} .funnel-stage-delta b.down{color:#dc2626}
@@ -742,7 +743,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
       <div class="card-title">퍼널 흐름</div>
       <div class="card-sub" id="fn-flow-sub">세션 → 상품조회 → 장바구니 → 구매완료 · 당월 일평균 · 막대 폭 = 세션 대비 규모(√스케일) · 막대·마커 호버 시 숫자 표시</div>
       <div class="funnel-stage">
-        <div class="funnel-stage-head"><span class="funnel-stage-lbl">세션</span><span class="funnel-stage-val" id="fn-sess-val">-</span><span class="funnel-stage-delta" id="fn-sess-delta"></span></div>
+        <div class="funnel-stage-head"><span class="funnel-stage-lbl">세션</span><span class="funnel-stage-right"><span class="funnel-stage-val" id="fn-sess-val">-</span><span class="funnel-stage-delta" id="fn-sess-delta"></span></span></div>
         <div class="funnel-bar-bg" style="overflow:visible;position:relative">
           <div class="funnel-bar" id="fn-sess-bar" style="width:0%;background:#86b6ef"></div>
           <div class="fi-mark mavg" id="fn-sess-m" style="display:none"></div>
@@ -753,7 +754,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
         <span id="fn-s2vi-lbl">세션당 상품조회 -건</span>
       </div>
       <div class="funnel-stage">
-        <div class="funnel-stage-head"><span class="funnel-stage-lbl">상품조회</span><span class="funnel-stage-val" id="fn-view-val">-</span><span class="funnel-stage-delta" id="fn-view-delta"></span></div>
+        <div class="funnel-stage-head"><span class="funnel-stage-lbl">상품조회</span><span class="funnel-stage-right"><span class="funnel-stage-val" id="fn-view-val">-</span><span class="funnel-stage-delta" id="fn-view-delta"></span></span></div>
         <div class="funnel-bar-bg" style="overflow:visible;position:relative">
           <div class="funnel-bar" id="fn-view-bar" style="width:0%;background:#5598e7"></div>
           <div class="fi-mark mavg" id="fn-view-m" style="display:none"></div>
@@ -764,7 +765,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
         <span id="fn-vi2c-lbl">조회→장바구니담기 -%</span>
       </div>
       <div class="funnel-stage">
-        <div class="funnel-stage-head"><span class="funnel-stage-lbl">장바구니</span><span class="funnel-stage-val" id="fn-cart-val">-</span><span class="funnel-stage-delta" id="fn-cart-delta"></span></div>
+        <div class="funnel-stage-head"><span class="funnel-stage-lbl">장바구니</span><span class="funnel-stage-right"><span class="funnel-stage-val" id="fn-cart-val">-</span><span class="funnel-stage-delta" id="fn-cart-delta"></span></span></div>
         <div class="funnel-bar-bg" style="overflow:visible;position:relative">
           <div class="funnel-bar" id="fn-cart-bar" style="width:0%;background:#1c5cab"></div>
           <div class="fi-mark mavg" id="fn-cart-m" style="display:none"></div>
@@ -775,7 +776,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
         <span id="fn-c2p-lbl">장바구니담기→구매 -%</span>
       </div>
       <div class="funnel-stage">
-        <div class="funnel-stage-head"><span class="funnel-stage-lbl">구매완료</span><span class="funnel-stage-val" id="fn-purchase-val">-</span><span class="funnel-stage-delta" id="fn-purchase-delta"></span></div>
+        <div class="funnel-stage-head"><span class="funnel-stage-lbl">구매완료</span><span class="funnel-stage-right"><span class="funnel-stage-val" id="fn-purchase-val">-</span><span class="funnel-stage-delta" id="fn-purchase-delta"></span></span></div>
         <div class="funnel-bar-bg" style="overflow:visible;position:relative">
           <div class="funnel-bar" id="fn-purchase-bar" style="width:0%;background:#0d366b"></div>
           <div class="fi-mark mavg" id="fn-purchase-m" style="display:none"></div>
@@ -1697,7 +1698,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
       <div class="card-title">퍼널 흐름</div>
       <div class="card-sub" id="pdfn-flow-sub">세션 → 상품조회 → 장바구니 → 구매완료 · 선택 기간 일평균</div>
       <div class="funnel-stage">
-        <div class="funnel-stage-head"><span class="funnel-stage-lbl">세션</span><span class="funnel-stage-val" id="pdfn-sess-val">-</span><span class="funnel-stage-delta" id="pdfn-sess-delta"></span></div>
+        <div class="funnel-stage-head"><span class="funnel-stage-lbl">세션</span><span class="funnel-stage-right"><span class="funnel-stage-val" id="pdfn-sess-val">-</span><span class="funnel-stage-delta" id="pdfn-sess-delta"></span></span></div>
         <div class="funnel-bar-bg" style="overflow:visible;position:relative">
           <div class="funnel-bar" id="pdfn-sess-bar" style="width:0%;background:#86b6ef"></div>
           <div class="fi-mark mavg" id="pdfn-sess-m" style="display:none"></div>
@@ -1706,7 +1707,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
       </div>
       <div class="funnel-connector"><span id="pdfn-s2vi-lbl">세션당 상품조회 -건</span></div>
       <div class="funnel-stage">
-        <div class="funnel-stage-head"><span class="funnel-stage-lbl">상품조회</span><span class="funnel-stage-val" id="pdfn-view-val">-</span><span class="funnel-stage-delta" id="pdfn-view-delta"></span></div>
+        <div class="funnel-stage-head"><span class="funnel-stage-lbl">상품조회</span><span class="funnel-stage-right"><span class="funnel-stage-val" id="pdfn-view-val">-</span><span class="funnel-stage-delta" id="pdfn-view-delta"></span></span></div>
         <div class="funnel-bar-bg" style="overflow:visible;position:relative">
           <div class="funnel-bar" id="pdfn-view-bar" style="width:0%;background:#5598e7"></div>
           <div class="fi-mark mavg" id="pdfn-view-m" style="display:none"></div>
@@ -1715,7 +1716,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
       </div>
       <div class="funnel-connector"><span id="pdfn-vi2c-lbl">조회→장바구니담기 -%</span></div>
       <div class="funnel-stage">
-        <div class="funnel-stage-head"><span class="funnel-stage-lbl">장바구니</span><span class="funnel-stage-val" id="pdfn-cart-val">-</span><span class="funnel-stage-delta" id="pdfn-cart-delta"></span></div>
+        <div class="funnel-stage-head"><span class="funnel-stage-lbl">장바구니</span><span class="funnel-stage-right"><span class="funnel-stage-val" id="pdfn-cart-val">-</span><span class="funnel-stage-delta" id="pdfn-cart-delta"></span></span></div>
         <div class="funnel-bar-bg" style="overflow:visible;position:relative">
           <div class="funnel-bar" id="pdfn-cart-bar" style="width:0%;background:#1c5cab"></div>
           <div class="fi-mark mavg" id="pdfn-cart-m" style="display:none"></div>
@@ -1724,7 +1725,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
       </div>
       <div class="funnel-connector"><span id="pdfn-c2p-lbl">장바구니담기→구매 -%</span></div>
       <div class="funnel-stage">
-        <div class="funnel-stage-head"><span class="funnel-stage-lbl">구매완료</span><span class="funnel-stage-val" id="pdfn-purchase-val">-</span><span class="funnel-stage-delta" id="pdfn-purchase-delta"></span></div>
+        <div class="funnel-stage-head"><span class="funnel-stage-lbl">구매완료</span><span class="funnel-stage-right"><span class="funnel-stage-val" id="pdfn-purchase-val">-</span><span class="funnel-stage-delta" id="pdfn-purchase-delta"></span></span></div>
         <div class="funnel-bar-bg" style="overflow:visible;position:relative">
           <div class="funnel-bar" id="pdfn-purchase-bar" style="width:0%;background:#0d366b"></div>
           <div class="fi-mark mavg" id="pdfn-purchase-m" style="display:none"></div>
