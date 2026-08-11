@@ -775,7 +775,7 @@ function syncDateUI(){
 function renderFilters(){
   const L=DATA.meta.dimLabels;
   let html=`<div class="frow"><span class="flabel">기간</span>
-    <div class="seg" data-dim="preset">${[[7,'최근 7일'],[30,'30일'],['month','당월'],['lastMonth','전월']].map(([r,l])=>`<button data-v="${r}">${l}</button>`).join('')}</div>
+    <div class="seg" data-dim="preset">${[[1,'전일'],[7,'최근 7일'],[30,'30일'],['month','당월'],['lastMonth','전월']].map(([r,l])=>`<button data-v="${r}">${l}</button>`).join('')}</div>
     <div class="dpick">
       <input type="date" id="dStart" min="${selMin}" max="${maxDate}">
       <span class="tilde">~</span>
