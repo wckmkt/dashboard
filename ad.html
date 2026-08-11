@@ -507,16 +507,15 @@ function renderCampTbl(){
     return `<th class="sortable lft ${act?'act':''}" data-k="${key}">${label}<span class="arr">${ar}</span></th>`;};
   const thN=(label,key)=>{const act=s.key===key;const ar=act?(s.dir<0?'▼':'▲'):'▲';
     return `<th class="sortable ${act?'act':''}" data-k="${key}" style="width:1px;white-space:nowrap">${label}<span class="arr">${ar}</span></th>`;};
-  const cpCell=v=>`<td>${v==null?'<span class=muted>—</span>':F.won(v)}</td>`;
-  const head=`<thead><tr><th style="width:42px">순위</th>${thL('캠페인','campaign')}${thN('구분','g')}${thN('광고비','c')}${thN('매출','rv')}${thN('ROAS','roas')}${thN('CP_UV','cpUV')}${thN('APP_CP_UV','appCpUV')}${thN('설치','ins')}${thN('가입','su')}${thN('첫구매','fo')}${thN('첫구매CPA','cpaFo')}</tr></thead>`;
+  const head=`<thead><tr><th style="width:42px">순위</th>${thL('캠페인','campaign')}${thN('구분','g')}${thN('광고비','c')}${thN('매출','rv')}${thN('ROAS','roas')}${thN('설치','ins')}${thN('가입','su')}${thN('첫구매','fo')}${thN('첫구매CPA','cpaFo')}</tr></thead>`;
   const body=cps.slice(0,limit).map((c,i)=>`<tr>
     <td class="rank">${i+1}</td>
     <td class="lft"><span class="cname" title="${campLabel(c.campaign)}">${campLabel(c.campaign)}</span><br><span class="chl">${c.media} · ${c.s} · ${c.t} · ${c.o2}</span></td>
     <td><span class="gtag" style="background:${(gColors[c.g]||'#64748b')}22;color:${gColors[c.g]||'#64748b'}">${c.g}</span></td>
     <td>${c.c?WC(c.c):'<span class=muted>0</span>'}</td><td>${WC(c.rv)}</td>
-    ${roasCell(c.roas)}${cpCell(c.cpUV)}${cpCell(c.appCpUV)}<td>${F.num(c.ins)}</td><td>${F.num(c.su)}</td><td>${F.num(c.fo)}</td>
+    ${roasCell(c.roas)}<td>${F.num(c.ins)}</td><td>${F.num(c.su)}</td><td>${F.num(c.fo)}</td>
     <td>${c.cpaFo==null?'<span class=muted>—</span>':F.won(c.cpaFo)}</td></tr>`).join('');
-  document.getElementById('campTbl').innerHTML=head+'<tbody>'+(body||`<tr><td colspan=12 class=muted style="text-align:center;padding:24px">결과 없음</td></tr>`)+'</tbody>';
+  document.getElementById('campTbl').innerHTML=head+'<tbody>'+(body||`<tr><td colspan=10 class=muted style="text-align:center;padding:24px">결과 없음</td></tr>`)+'</tbody>';
   const more=document.getElementById('campMore');
   if(total>15){
     more.innerHTML=state.campExpanded
@@ -536,16 +535,15 @@ function renderSojaeTbl(){
     return `<th class="sortable lft ${act?'act':''}" data-k="${key}">${label}<span class="arr">${ar}</span></th>`;};
   const thN=(label,key)=>{const act=s.key===key;const ar=act?(s.dir<0?'▼':'▲'):'▲';
     return `<th class="sortable ${act?'act':''}" data-k="${key}" style="width:1px;white-space:nowrap">${label}<span class="arr">${ar}</span></th>`;};
-  const cpCell=v=>`<td>${v==null?'<span class=muted>—</span>':F.won(v)}</td>`;
-  const head=`<thead><tr><th style="width:42px">순위</th>${thL('소재','sojae')}${thN('구분','g')}${thN('광고비','c')}${thN('매출','rv')}${thN('ROAS','roas')}${thN('CP_UV','cpUV')}${thN('APP_CP_UV','appCpUV')}${thN('설치','ins')}${thN('가입','su')}${thN('첫구매','fo')}${thN('첫구매CPA','cpaFo')}</tr></thead>`;
+  const head=`<thead><tr><th style="width:42px">순위</th>${thL('소재','sojae')}${thN('구분','g')}${thN('광고비','c')}${thN('매출','rv')}${thN('ROAS','roas')}${thN('설치','ins')}${thN('가입','su')}${thN('첫구매','fo')}${thN('첫구매CPA','cpaFo')}</tr></thead>`;
   const body=cps.slice(0,limit).map((c,i)=>`<tr>
     <td class="rank">${i+1}</td>
     <td class="lft"><span class="cname" title="${campLabel(c.sojae)}">${campLabel(c.sojae)}</span><br><span class="chl">${c.media} · ${campLabel(c.campaign)}</span></td>
     <td><span class="gtag" style="background:${(gColors[c.g]||'#64748b')}22;color:${gColors[c.g]||'#64748b'}">${c.g}</span></td>
     <td>${c.c?WC(c.c):'<span class=muted>0</span>'}</td><td>${WC(c.rv)}</td>
-    ${roasCell(c.roas)}${cpCell(c.cpUV)}${cpCell(c.appCpUV)}<td>${F.num(c.ins)}</td><td>${F.num(c.su)}</td><td>${F.num(c.fo)}</td>
+    ${roasCell(c.roas)}<td>${F.num(c.ins)}</td><td>${F.num(c.su)}</td><td>${F.num(c.fo)}</td>
     <td>${c.cpaFo==null?'<span class=muted>—</span>':F.won(c.cpaFo)}</td></tr>`).join('');
-  document.getElementById('sojaeTbl').innerHTML=head+'<tbody>'+(body||`<tr><td colspan=12 class=muted style="text-align:center;padding:24px">결과 없음</td></tr>`)+'</tbody>';
+  document.getElementById('sojaeTbl').innerHTML=head+'<tbody>'+(body||`<tr><td colspan=10 class=muted style="text-align:center;padding:24px">결과 없음</td></tr>`)+'</tbody>';
   const more=document.getElementById('sojaeMore');
   if(total>15){
     more.innerHTML=state.sojaeExpanded
@@ -576,17 +574,16 @@ function renderPromoTbl(){
     return `<th class="sortable lft ${act?'act':''}" data-k="${key}">${label}<span class="arr">${ar}</span></th>`;};
   const thN=(label,key)=>{const act=s.key===key;const ar=act?(s.dir<0?'▼':'▲'):'▲';
     return `<th class="sortable ${act?'act':''}" data-k="${key}" style="width:1px;white-space:nowrap">${label}<span class="arr">${ar}</span></th>`;};
-  const head=`<thead><tr><th style="width:40px">순위</th>${thL('기획전','promo')}<th class="lft" style="width:90px">대표사업부</th>${thN('광고비','c')}${thN('매출','rv')}${thN('ROAS','roas')}${thN('CP_UV','cpUV')}${thN('APP_CP_UV','appCpUV')}${thN('가입','su')}${thN('첫구매','fo')}${thN('첫구매CPA','cpaFo')}</tr></thead>`;
-  const cpCell=v=>`<td>${v==null?'<span class=muted>—</span>':F.won(v)}</td>`;
+  const head=`<thead><tr><th style="width:40px">순위</th>${thL('기획전','promo')}<th class="lft" style="width:90px">대표사업부</th>${thN('광고비','c')}${thN('매출','rv')}${thN('ROAS','roas')}${thN('가입','su')}${thN('첫구매','fo')}${thN('첫구매CPA','cpaFo')}</tr></thead>`;
   const body=ps.slice(0,limit).map((p,i)=>`<tr>
     <td class="rank">${i+1}</td>
     <td class="lft"><span class="cname" title="${p.promo}">${p.promo}</span></td>
     <td class="lft"><span class="gtag" style="background:${(sColors[p.s]||'#64748b')}22;color:${sColors[p.s]||'#64748b'}">${p.s||'—'}</span></td>
     <td>${p.c?WC(p.c):'<span class=muted>0</span>'}</td><td>${WC(p.rv)}</td>
-    ${roasCell(p.roas)}${cpCell(p.cpUV)}${cpCell(p.appCpUV)}
+    ${roasCell(p.roas)}
     <td>${F.num(p.su)}</td><td>${F.num(p.fo)}</td>
     <td>${p.cpaFo==null?'<span class=muted>—</span>':F.won(p.cpaFo)}</td></tr>`).join('');
-  document.getElementById('promoTbl').innerHTML=head+'<tbody>'+(body||`<tr><td colspan=11 class=muted style="text-align:center;padding:24px">데이터 없음</td></tr>`)+'</tbody>';
+  document.getElementById('promoTbl').innerHTML=head+'<tbody>'+(body||`<tr><td colspan=9 class=muted style="text-align:center;padding:24px">데이터 없음</td></tr>`)+'</tbody>';
   const more=document.getElementById('promoMore');
   if(total>15){
     more.innerHTML=state.promoExpanded
@@ -831,12 +828,14 @@ async function init(){
   if(gap&&gap.daily){
     // 광고raw(엑셀)에 없는 날짜만 보강 — 엑셀 우선
     const exD=new Set(DATA.daily.map(r=>r.dt)), exR=new Set(DATA.rows.map(r=>r.dt));
-    DATA.daily=DATA.daily.concat(gap.daily.filter(r=>!exD.has(r.dt)));
+    const gapDaily=gap.daily.filter(r=>!exD.has(r.dt));
+    DATA.daily=DATA.daily.concat(gapDaily);
     DATA.rows =DATA.rows.concat(gap.rows.filter(r=>!exR.has(r.dt)));
-    gapDates=(gap.meta&&gap.meta.gapDates)||[]; GAPSET=new Set(gapDates);
+    // 배너는 실제로 병합된(=아직 엑셀에 없는) 날짜만 표시 — gap.meta.gapDates는 갱신 지연 시 이미 실데이터 반영된 날짜를 포함할 수 있음
+    gapDates=[...new Set(gapDaily.map(r=>r.dt))].sort(); GAPSET=new Set(gapDates);
     // 갭에서 새로 등장한 차원값을 필터 목록에 보강
     const dk={s:'daehyo',g:'gubun',t:'yuhyeong',o1:'mokpyo1',o2:'mokpyo2'};
-    for(const r of gap.daily){ for(const k in dk){ const arr=DATA.dims[dk[k]]; if(arr&&r[k]&&!arr.includes(r[k]))arr.push(r[k]); } }
+    for(const r of gapDaily){ for(const k in dk){ const arr=DATA.dims[dk[k]]; if(arr&&r[k]&&!arr.includes(r[k]))arr.push(r[k]); } }
   }
   const dts=[...new Set(DATA.rows.map(r=>r.dt))].sort();
   minDate=dts[0]; maxDate=dts[dts.length-1];
