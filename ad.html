@@ -104,6 +104,9 @@
   @media(max-width:1000px){.grid2{grid-template-columns:1fr;}.kpis{grid-template-columns:repeat(2,1fr);}}
   .tbl-wrap{overflow-x:auto;}
   table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap;}
+  table.tbl-auto{width:auto;min-width:60%;}
+  table.tbl-auto th,table.tbl-auto td{padding-left:22px;}
+  table.tbl-auto th:first-child,table.tbl-auto td:first-child{padding-left:12px;}
   th{text-align:right;padding:10px 12px;color:var(--text-2);font-weight:600;font-size:11.5px;
     border-bottom:1px solid var(--border-bright);cursor:pointer;user-select:none;letter-spacing:.02em;}
   th:first-child,td:first-child{text-align:left;}
@@ -730,19 +733,19 @@ function renderDetail(g){
       y:{position:'left',grid:{color:'rgba(15,23,42,0.07)'},ticks:{color:'#7c3aed',font:{size:10},callback:v=>v>=1e6?(v/1e6).toFixed(1)+'M':(v/1e3).toFixed(0)+'K'}},
       y1:{position:'right',grid:{drawOnChartArea:false},ticks:{color:'#0891b2',font:{size:10},callback:v=>v>=1e3?(v/1e3).toFixed(0)+'K':v}}}}});
   // 일별 상세 표
-  const dW='style="width:1px;white-space:nowrap"';
-  const dHead=`<thead><tr><th class="lft">날짜</th><th ${dW}>광고비</th><th ${dW}>노출</th><th ${dW}>클릭</th><th ${dW}>매출</th><th ${dW}>ROAS</th><th ${dW}>CVR</th><th ${dW}>설치</th><th ${dW}>가입</th><th ${dW}>첫구매</th><th ${dW}>가입CPA</th><th ${dW}>첫구매CPA</th></tr></thead>`;
+  const dHead=`<thead><tr><th class="lft">날짜</th><th>광고비</th><th>노출</th><th>클릭</th><th>매출</th><th>ROAS</th><th>CVR</th><th>설치</th><th>가입</th><th>첫구매</th><th>가입CPA</th><th>첫구매CPA</th></tr></thead>`;
   const dBody=labels.map((d,i)=>{const a=derive(gd[i]); const cvr=a.clk>0?a.fo/a.clk*100:null;
     return `<tr><td><b>${d}</b>${GAPSET.has(d)?' <span style="color:#c026d3;font-size:10px">⚡</span>':''}</td><td>${WC(a.c)}</td><td>${F.num(a.imp)}</td><td>${F.num(a.clk)}</td><td>${WC(a.rv)}</td>${roasCell(a.roas)}<td>${cvr==null?'<span class=muted>—</span>':cvr.toFixed(2)+'%'}</td><td>${F.num(a.ins)}</td><td>${F.num(a.su)}</td><td>${F.num(a.fo)}</td><td>${a.cpaSu==null?'<span class=muted>—</span>':F.won(a.cpaSu)}</td><td>${a.cpaFo==null?'<span class=muted>—</span>':F.won(a.cpaFo)}</td></tr>`;}).join('');
-  document.getElementById('dailyTbl_'+g).innerHTML=dHead+'<tbody>'+(dBody||'<tr><td colspan=12 class=muted style="text-align:center;padding:20px">데이터 없음</td></tr>')+'</tbody>';
+  const dailyTblEl=document.getElementById('dailyTbl_'+g); dailyTblEl.className='tbl-auto';
+  dailyTblEl.innerHTML=dHead+'<tbody>'+(dBody||'<tr><td colspan=12 class=muted style="text-align:center;padding:20px">데이터 없음</td></tr>')+'</tbody>';
   // 유형별/매체별 표
   const grpTbl=(rowsArr,key,elId,label)=>{
     const by={}; rowsArr.forEach(r=>{const k=r[key]||'(미지정)';(by[k]=by[k]||emptyAgg())&&add(by[k],r);});
     const list=Object.entries(by).map(([k,a])=>({k,...derive(a)})).sort((a,b)=>b.c-a.c);
-    const gW='style="width:1px;white-space:nowrap"';
-    const head=`<thead><tr><th class="lft">${label}</th><th ${gW}>광고비</th><th ${gW}>매출</th><th ${gW}>ROAS</th><th ${gW}>가입</th><th ${gW}>첫구매</th><th ${gW}>첫구매CPA</th></tr></thead>`;
+    const head=`<thead><tr><th class="lft">${label}</th><th>광고비</th><th>매출</th><th>ROAS</th><th>가입</th><th>첫구매</th><th>첫구매CPA</th></tr></thead>`;
     const body=list.map(m=>`<tr><td><b>${m.k}</b></td><td>${WC(m.c)}</td><td>${WC(m.rv)}</td>${roasCell(m.roas)}<td>${F.num(m.su)}</td><td>${F.num(m.fo)}</td><td>${m.cpaFo==null?'<span class=muted>—</span>':F.won(m.cpaFo)}</td></tr>`).join('');
-    document.getElementById(elId).innerHTML=head+'<tbody>'+(body||'<tr><td colspan=7 class=muted style="text-align:center;padding:20px">데이터 없음</td></tr>')+'</tbody>';
+    const el=document.getElementById(elId); el.className='tbl-auto';
+    el.innerHTML=head+'<tbody>'+(body||'<tr><td colspan=7 class=muted style="text-align:center;padding:20px">데이터 없음</td></tr>')+'</tbody>';
   };
   grpTbl(rows,'t','typeTbl_'+g,'광고유형');
   grpTbl(detRows(g),'media','mediaTblD_'+g,'매체');
