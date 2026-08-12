@@ -206,7 +206,7 @@
 
   <div class="card">
     <div class="card-h">
-      <div class="card-t"><span class="bar"></span>캠페인별 상세</div>
+      <div class="card-t"><span class="bar"></span>캠페인별 상세 <span class="card-sub" style="font-weight:500;margin-left:6px;">APP세션은 채널ID 매칭분만 집계(미매칭 캠페인은 0)</span></div>
       <input class="search" id="campSearch" placeholder="캠페인 검색…">
     </div>
     <div class="tbl-wrap"><table id="campTbl"></table></div>
@@ -341,7 +341,7 @@ const WC=v=>{ if(v==null)return'—'; const a=Math.abs(v);
 const campLabel=c=>(!c||c==='-'||c==='(미지정)')?'(캠페인 미지정 · 매체 보고분)':c;
 const DIMS=['s','g','t','o1','o2'];
 const DIMKEY={s:'daehyo',g:'gubun',t:'yuhyeong',o1:'mokpyo1',o2:'mokpyo2'};
-const M=['c','ins','su','rv','fo','uv','auv','imp','clk','chRev'];
+const M=['c','ins','su','rv','fo','uv','auv','imp','clk','chRev','asess'];
 let DATA, minDate, maxDate, selMin, GAPSET=new Set();
 let state={ start:null, end:null, preset:7, metric:'money', revMode:'mmp',
   f:{s:'전체',g:'전체',t:'전체',o1:'전체',o2:'전체'},
@@ -369,6 +369,8 @@ const derive=a=>({...a, roas:a.c>0?a.rv/a.c*100:null, roasCh:a.c>0?a.chRev/a.c*1
   cpUV:a.c>0&&a.uv>0?a.c/a.uv:null, appCpUV:a.c>0&&a.auv>0?a.c/a.auv:null });
 const roasClass=v=>v==null?'muted':(v>=1000?'roas-good':v>=400?'roas-mid':'roas-bad');
 const roasCell=v=>`<td class="${roasClass(v)}">${v==null?'<span class=muted>—</span>':v.toFixed(0)+'%'}</td>`;
+// APP세션(채널ID_App_세션): 채널ID가 매칭된 행에만 값이 있어 0이 흔하다 → 0은 흐리게
+const sessCell=v=>`<td>${v?F.num(v):'<span class=muted>0</span>'}</td>`;
 const matchF=r=>DIMS.every(d=>state.f[d]==='전체'||r[d]===state.f[d]);
 
 const inDaily=()=>DATA.daily.filter(r=>r.dt>=state.start&&r.dt<=state.end&&matchF(r)); // KPI/추이(YoY밴드 포함)
@@ -527,15 +529,15 @@ function renderCampTbl(){
   const thN=(label,key)=>{const act=s.key===key;const ar=act?(s.dir<0?'▼':'▲'):'▲';
     return `<th class="sortable ${act?'act':''}" data-k="${key}" style="width:1px;white-space:nowrap">${label}<span class="arr">${ar}</span></th>`;};
   const cpCell=v=>`<td>${v==null?'<span class=muted>—</span>':F.won(v)}</td>`;
-  const head=`<thead><tr><th style="width:42px">순위</th>${thL('캠페인','campaign')}${thN('구분','g')}${thN('광고비','c')}${thN(ch?'매출(채널ID)':'매출','rv')}${thN('ROAS','roas')}${thN('CP_UV','cpUV')}${thN('APP_CP_UV','appCpUV')}${thN('설치','ins')}${thN('가입','su')}${thN('첫구매','fo')}${thN('첫구매CPA','cpaFo')}</tr></thead>`;
+  const head=`<thead><tr><th style="width:42px">순위</th>${thL('캠페인','campaign')}${thN('구분','g')}${thN('광고비','c')}${thN(ch?'매출(채널ID)':'매출','rv')}${thN('ROAS','roas')}${thN('CP_UV','cpUV')}${thN('APP_CP_UV','appCpUV')}${thN('APP세션','asess')}${thN('설치','ins')}${thN('가입','su')}${thN('첫구매','fo')}${thN('첫구매CPA','cpaFo')}</tr></thead>`;
   const body=cps.slice(0,limit).map((c,i)=>`<tr>
     <td class="rank">${i+1}</td>
     <td class="lft"><span class="cname" title="${campLabel(c.campaign)}">${campLabel(c.campaign)}</span><br><span class="chl">${c.media} · ${c.s} · ${c.t} · ${c.o2}</span></td>
     <td><span class="gtag" style="background:${(gColors[c.g]||'#64748b')}22;color:${gColors[c.g]||'#64748b'}">${c.g}</span></td>
     <td>${c.c?WC(c.c):'<span class=muted>0</span>'}</td><td>${WC(rvOf(c))}</td>
-    ${roasCell(roasOf(c))}${cpCell(c.cpUV)}${cpCell(c.appCpUV)}<td>${F.num(c.ins)}</td><td>${F.num(c.su)}</td><td>${F.num(c.fo)}</td>
+    ${roasCell(roasOf(c))}${cpCell(c.cpUV)}${cpCell(c.appCpUV)}${sessCell(c.asess)}<td>${F.num(c.ins)}</td><td>${F.num(c.su)}</td><td>${F.num(c.fo)}</td>
     <td>${c.cpaFo==null?'<span class=muted>—</span>':F.won(c.cpaFo)}</td></tr>`).join('');
-  document.getElementById('campTbl').innerHTML=head+'<tbody>'+(body||`<tr><td colspan=12 class=muted style="text-align:center;padding:24px">결과 없음</td></tr>`)+'</tbody>';
+  document.getElementById('campTbl').innerHTML=head+'<tbody>'+(body||`<tr><td colspan=13 class=muted style="text-align:center;padding:24px">결과 없음</td></tr>`)+'</tbody>';
   const more=document.getElementById('campMore');
   if(total>15){
     more.innerHTML=state.campExpanded
