@@ -7,7 +7,7 @@
 - **대시보드**: `KPI/pmkt-kpi.html` — 단일 파일 정적 SPA(Vanilla JS + Chart.js). GitHub Pages(`https://wckmkt.github.io/dashboard/KPI/pmkt-kpi.html`)로 배포. 백엔드 없음.
 - **데이터**: `KPI/pmkt_kpi_data.json` — `C:\bang\gen_realtime_dashboard.py`가 OneDrive Excel 마스터파일을 COM으로 읽어 생성 → git 자동 커밋·push. Windows 작업스케줄러가 하루 5회(09/12/14/16/18시) 구동.
 - **레포 2개(별개 git)**:
-  - `C:\bang\hyunyee-dashboard` = 이 레포(대시보드·데이터, 커밋 대상).
+  - `C:\bang\pmkt-dashboard` = 이 레포(대시보드·데이터, 커밋 대상).
   - `C:\bang` = 파이프라인 스크립트(gen_realtime_dashboard.py, teams_notify.ps1 등). **명시적 요청 없이는 커밋하지 말 것.**
 - 세션 작업 디렉토리는 보통 `KPI/`. 상세 운영지식은 fable5 로컬 memory에만 있으니, **모델 무관 규칙은 이 CLAUDE.md가 유일 소스**.
 
