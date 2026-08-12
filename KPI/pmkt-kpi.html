@@ -743,6 +743,8 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
         <option value="기타">기타</option>
       </select>
       <span id="funnel-period-note">· 당월 일평균 · <span style="color:#f59e0b;font-weight:700">┃</span> 전월 <span style="color:#94a3b8;font-weight:700">┊</span> 전년동월 (동기간)</span>
+      <button type="button" onclick="exportFunnelCSV()"
+        style="font-size:11px;border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:3px 9px;cursor:pointer;color:#475569">📥 CSV 다운로드</button>
     </span>
   </div>
   <div class="grid-32" style="margin-bottom:14px">
@@ -7459,12 +7461,51 @@ function buildFunnelFromTraffic() {
   const pmY = mn === 1 ? yr - 1 : yr, pmM = mn === 1 ? 12 : mn - 1;
   const sel = document.getElementById('funnel-ch-sel');
   const curR = rangeOf(yr, mn), prevR = rangeOf(pmY, pmM), lyR = rangeOf(yr - 1, mn);
-  renderFunnelBlock({
+  lastFunnelResult = renderFunnelBlock({
     pfx: '', ch: sel ? sel.value : '__total__', app: funnelDevScope === 'app',
     cur: curR, prev: prevR, ly: lyR,
     prevLbl: '전월', lyLbl: '전년', unitLbl: '/일',
   });
   renderOrganicFunnelNote(curR, lyR, funnelDevScope === 'app');
+}
+
+// ── 전환 퍼널 CSV 다운로드 (2026-08-12) ──────────────────────────────────
+// "토글(전체/APP·채널 선택)로 나온 값을 엑셀·PPT용 rawdata로 받고 싶다" 요청.
+// renderFunnelBlock()이 이미 화면에 쓰는 cm/pm/lz(단계 원시값)·cv/pv/yv(전환율)를
+// 반환값으로 그대로 받아 표로 바꿀 뿐, 새 계산은 하지 않는다(R2) — 화면과 항상 같은 값.
+let lastFunnelResult = null;
+function exportFunnelCSV() {
+  const r = lastFunnelResult;
+  if (!r) { alert('퍼널 데이터가 아직 준비되지 않았습니다.'); return; }
+  const { cm, pm, lz, cv, pv, yv, avg, prevLbl, lyLbl, unitLbl, ch, app } = r;
+  const round = v => v == null ? '' : Math.round(v);
+  const pct = (v, dec) => v == null ? '' : +v.toFixed(dec);
+  const rows = [
+    ['항목', '단위', `현재${unitLbl}`, prevLbl, lyLbl],
+    ['세션', '명', round(avg(cm,'s')), round(avg(pm,'s')), round(avg(lz,'s'))],
+    ['상품조회', '건', round(avg(cm,'vi')), round(avg(pm,'vi')), round(avg(lz,'vi'))],
+    ['장바구니', '명', round(avg(cm,'c')), round(avg(pm,'c')), round(avg(lz,'c'))],
+    ['구매완료', '명', round(avg(cm,'p')), round(avg(pm,'p')), round(avg(lz,'p'))],
+    ['세션당 상품조회', '건', pct(cv.s2vi,2), pct(pv.s2vi,2), pct(yv.s2vi,2)],
+    ['조회→장바구니', '%', pct(cv.vi2c,2), pct(pv.vi2c,2), pct(yv.vi2c,2)],
+    ['장바구니→구매', '%', pct(cv.c2p,2), pct(pv.c2p,2), pct(yv.c2p,2)],
+    ['세션→구매', '%', pct(cv.s2p,2), pct(pv.s2p,2), pct(yv.s2p,2)],
+    ['세션→신규가입', '%', pct(cv.s2j,2), pct(pv.s2j,2), pct(yv.s2j,2)],
+    ['신규가입→첫구매', '%', pct(cv.j2f,2), pct(pv.j2f,2), pct(yv.j2f,2)],
+  ];
+  const chLbl = { __total__: '전체', 기타: '기타' }[ch] || ch;
+  const scopeLbl = app ? 'APP' : '전체';
+  rows.splice(1, 0, [`채널: ${chLbl} · 스코프: ${scopeLbl}`, '', '', '', '']);
+  const csv = rows.map(row => row.map(v => {
+    const s = String(v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }).join(',')).join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `funnel_${chLbl}_${scopeLbl}_${getEffectiveDailyDate()}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // 2026-08-09: 퍼널 흐름 카드는 선택한 채널로 스코프가 바뀌지만, Organic은 항상 최대
@@ -7634,7 +7675,7 @@ function renderFunnelBlock(cfg) {
     $('leg').innerHTML = `${prevLbl} ${fv(p, dec)} ${dTxt(c, p)} · ${lyLbl} ${fv(y, dec)} ${dTxt(c, y)}`;
   });
 
-  return { cv, pv, yv, prevLbl, lyLbl };
+  return { cm, pm, lz, cv, pv, yv, avg, prevLbl, lyLbl, unitLbl, ch, app };
 }
 
 // ── 기간조회 전환 퍼널 ────────────────────────────────────────────────────
