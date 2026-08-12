@@ -104,7 +104,7 @@
   @media(max-width:1000px){.grid2{grid-template-columns:1fr;}.kpis{grid-template-columns:repeat(2,1fr);}}
   .tbl-wrap{overflow-x:auto;}
   table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap;}
-  table.tbl-auto{width:auto;min-width:60%;}
+  table.tbl-auto{width:100%;}
   table.tbl-auto th,table.tbl-auto td{padding-left:22px;}
   table.tbl-auto th:first-child,table.tbl-auto td:first-child{padding-left:12px;}
   th{text-align:right;padding:10px 12px;color:var(--text-2);font-weight:600;font-size:11.5px;
@@ -169,6 +169,14 @@
 
  <div id="tab1">
   <div id="cmpNote" style="font-size:11.5px;color:var(--text-3);margin:-4px 2px 12px;"></div>
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+    <span style="font-size:11.5px;color:var(--text-2);font-weight:700;">매출·ROAS 기준</span>
+    <div class="seg" id="revModeSeg">
+      <button data-v="mmp" class="on">MMP</button>
+      <button data-v="channel">채널ID</button>
+    </div>
+    <span id="revModeNote" class="card-sub"></span>
+  </div>
   <div class="kpis" id="kpis"></div>
 
   <div class="card">
@@ -333,9 +341,9 @@ const WC=v=>{ if(v==null)return'—'; const a=Math.abs(v);
 const campLabel=c=>(!c||c==='-'||c==='(미지정)')?'(캠페인 미지정 · 매체 보고분)':c;
 const DIMS=['s','g','t','o1','o2'];
 const DIMKEY={s:'daehyo',g:'gubun',t:'yuhyeong',o1:'mokpyo1',o2:'mokpyo2'};
-const M=['c','ins','su','rv','fo','uv','auv','imp','clk'];
+const M=['c','ins','su','rv','fo','uv','auv','imp','clk','chRev'];
 let DATA, minDate, maxDate, selMin, GAPSET=new Set();
-let state={ start:null, end:null, preset:7, metric:'money',
+let state={ start:null, end:null, preset:7, metric:'money', revMode:'mmp',
   f:{s:'전체',g:'전체',t:'전체',o1:'전체',o2:'전체'},
   campSort:{key:'c',dir:-1}, mediaSort:{key:'c',dir:-1}, sojaeSort:{key:'rv',dir:-1}, promoSort:{key:'c',dir:-1},
   search:'', sojaeSearch:'', promoSearch:'', campExpanded:false, mediaExpanded:false, sojaeExpanded:false, promoExpanded:false, tab:'perf' };
@@ -353,7 +361,10 @@ const md = ds => ds.slice(5).replace('-','/');
 
 const emptyAgg=()=>{const o={};M.forEach(k=>o[k]=0);return o;};
 const add=(a,r)=>{M.forEach(k=>a[k]+=(r[k]||0));return a;};
-const derive=a=>({...a, roas:a.c>0?a.rv/a.c*100:null, cpaSu:a.c>0&&a.su>0?a.c/a.su:null,
+const rvOf=o=>state.revMode==='channel'?o.chRev:o.rv;
+const roasOf=o=>state.revMode==='channel'?o.roasCh:o.roas;
+const sortVal=(o,k)=>k==='rv'?rvOf(o):k==='roas'?roasOf(o):o[k];
+const derive=a=>({...a, roas:a.c>0?a.rv/a.c*100:null, roasCh:a.c>0?a.chRev/a.c*100:null, cpaSu:a.c>0&&a.su>0?a.c/a.su:null,
   cpaFo:a.c>0&&a.fo>0?a.c/a.fo:null, cpi:a.c>0&&a.ins>0?a.c/a.ins:null,
   cpUV:a.c>0&&a.uv>0?a.c/a.uv:null, appCpUV:a.c>0&&a.auv>0?a.c/a.auv:null });
 const roasClass=v=>v==null?'muted':(v>=1000?'roas-good':v>=400?'roas-mid':'roas-bad');
@@ -395,10 +406,13 @@ function renderKPIs(){
   const cn=document.getElementById('cmpNote');
   if(cn) cn.innerHTML=`<b style="color:var(--text-2)">YoY</b> = 전년 동기(${yv?yv.ys+' ~ '+yv.ye:'데이터 없음'}) · `
     +`<b style="color:var(--text-2)">vs 직전</b> = 직전 동일기간(${pv?pv.ps+' ~ '+pv.pe:'데이터 없음'}) 대비`;
+  const ch=state.revMode==='channel';
+  const rn=document.getElementById('revModeNote');
+  if(rn) rn.textContent=ch?'채널ID(URL파라미터) 기준 매출 — 매체 보고값 대비 커버리지가 낮은 매체/기간이 있어 MMP 기준과 차이가 날 수 있음':'';
   const defs=[
     {cls:'k-cost',lab:'광고비',f:WC,get:o=>o.c,inv:true,sub:o=>o.c>0?`일평균 ${WC(o.c/days)}`:null},
-    {cls:'k-rev', lab:'매출(보고)',f:WC,get:o=>o.rv},
-    {cls:'k-roas',lab:'ROAS',f:v=>v==null?'—':v.toFixed(0)+'%',get:o=>o.roas,ppt:true},
+    {cls:'k-rev', lab:ch?'매출(채널ID)':'매출(보고)',f:WC,get:o=>ch?o.chRev:o.rv},
+    {cls:'k-roas',lab:'ROAS',f:v=>v==null?'—':v.toFixed(0)+'%',get:o=>ch?o.roasCh:o.roas,ppt:true},
     {cls:'',lab:'설치',f:F.num,get:o=>o.ins},
     {cls:'',lab:'가입',f:F.num,get:o=>o.su},
     {cls:'',lab:'첫구매',f:F.num,get:o=>o.fo},
@@ -449,11 +463,11 @@ function mediaAgg(){
   return Object.values(by).map(x=>({...x,...derive(x)}));
 }
 function renderMediaChart(){
-  const ms=mediaAgg().sort((a,b)=>b.c-a.c||b.rv-a.rv).slice(0,12);
+  const ms=mediaAgg().sort((a,b)=>b.c-a.c||rvOf(b)-rvOf(a)).slice(0,12);
   const ctx=document.getElementById('mediaChart'); if(mediaChart)mediaChart.destroy();
   mediaChart=new Chart(ctx,{type:'bar',data:{labels:ms.map(m=>m.media),datasets:[
     {label:'광고비',data:ms.map(m=>m.c),backgroundColor:'rgba(37,99,235,0.75)',borderRadius:4,xAxisID:'x'},
-    {label:'ROAS(%)',data:ms.map(m=>m.roas),backgroundColor:'rgba(217,119,6,0.8)',borderRadius:4,xAxisID:'x2'},
+    {label:'ROAS(%)',data:ms.map(roasOf),backgroundColor:'rgba(217,119,6,0.8)',borderRadius:4,xAxisID:'x2'},
   ]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
     plugins:{legend:{labels:{color:'#475569',usePointStyle:true,pointStyleWidth:10,font:{size:12}}},
       tooltip:{callbacks:{label:c=>c.dataset.label==='광고비'
@@ -468,13 +482,14 @@ const th=(label,key,s)=>{const act=s.key===key;const ar=act?(s.dir<0?'▼':'▲'
   return `<th class="sortable ${act?'act':''}" data-k="${key}">${label}<span class="arr">${ar}</span></th>`;};
 function renderMediaTbl(){
   const s=state.mediaSort; let ms=mediaAgg();
-  ms.sort((a,b)=>{const x=a[s.key]??-1,y=b[s.key]??-1;return(x<y?-1:x>y?1:0)*s.dir;});
-  const maxRev=Math.max(...ms.map(m=>m.rv),1);
+  ms.sort((a,b)=>{const x=sortVal(a,s.key)??-1,y=sortVal(b,s.key)??-1;return(x<y?-1:x>y?1:0)*s.dir;});
+  const maxRev=Math.max(...ms.map(rvOf),1);
+  const ch=state.revMode==='channel';
   const total=ms.length; const limit=state.mediaExpanded?total:12;
-  const head=`<thead><tr>${th('매체','media',s)}${th('광고비','c',s)}${th('매출','rv',s)}${th('ROAS','roas',s)}${th('가입','su',s)}${th('첫구매','fo',s)}${th('가입CPA','cpaSu',s)}${th('첫구매CPA','cpaFo',s)}</tr></thead>`;
+  const head=`<thead><tr>${th('매체','media',s)}${th('광고비','c',s)}${th(ch?'매출(채널ID)':'매출','rv',s)}${th('ROAS','roas',s)}${th('가입','su',s)}${th('첫구매','fo',s)}${th('가입CPA','cpaSu',s)}${th('첫구매CPA','cpaFo',s)}</tr></thead>`;
   const body=ms.slice(0,limit).map(m=>`<tr><td><b>${m.media}</b></td><td>${WC(m.c)}</td>
-    <td>${WC(m.rv)} <span class="barmini"><i style="width:${(m.rv/maxRev*100).toFixed(0)}%;background:var(--green)"></i></span></td>
-    ${roasCell(m.roas)}<td>${F.num(m.su)}</td><td>${F.num(m.fo)}</td>
+    <td>${WC(rvOf(m))} <span class="barmini"><i style="width:${(rvOf(m)/maxRev*100).toFixed(0)}%;background:var(--green)"></i></span></td>
+    ${roasCell(roasOf(m))}<td>${F.num(m.su)}</td><td>${F.num(m.fo)}</td>
     <td>${m.cpaSu==null?'<span class=muted>—</span>':F.won(m.cpaSu)}</td>
     <td>${m.cpaFo==null?'<span class=muted>—</span>':F.won(m.cpaFo)}</td></tr>`).join('');
   document.getElementById('mediaTbl').innerHTML=head+'<tbody>'+(body||'<tr><td colspan=8 class=muted style="text-align:center;padding:20px">데이터 없음</td></tr>')+'</tbody>';
@@ -503,21 +518,22 @@ function sojaeAgg(){
 function renderCampTbl(){
   const s=state.campSort; let cps=campAgg();
   if(state.search){const q=state.search.toLowerCase();cps=cps.filter(c=>c.campaign.toLowerCase().includes(q)||c.media.includes(state.search));}
-  cps.sort((a,b)=>{const x=a[s.key]??-1,y=b[s.key]??-1;return(x<y?-1:x>y?1:0)*s.dir;});
+  cps.sort((a,b)=>{const x=sortVal(a,s.key)??-1,y=sortVal(b,s.key)??-1;return(x<y?-1:x>y?1:0)*s.dir;});
   const total=cps.length;
+  const ch=state.revMode==='channel';
   const limit=state.campExpanded?Math.min(total,300):15;
   const thL=(label,key)=>{const act=s.key===key;const ar=act?(s.dir<0?'▼':'▲'):'▲';
     return `<th class="sortable lft ${act?'act':''}" data-k="${key}">${label}<span class="arr">${ar}</span></th>`;};
   const thN=(label,key)=>{const act=s.key===key;const ar=act?(s.dir<0?'▼':'▲'):'▲';
     return `<th class="sortable ${act?'act':''}" data-k="${key}" style="width:1px;white-space:nowrap">${label}<span class="arr">${ar}</span></th>`;};
   const cpCell=v=>`<td>${v==null?'<span class=muted>—</span>':F.won(v)}</td>`;
-  const head=`<thead><tr><th style="width:42px">순위</th>${thL('캠페인','campaign')}${thN('구분','g')}${thN('광고비','c')}${thN('매출','rv')}${thN('ROAS','roas')}${thN('CP_UV','cpUV')}${thN('APP_CP_UV','appCpUV')}${thN('설치','ins')}${thN('가입','su')}${thN('첫구매','fo')}${thN('첫구매CPA','cpaFo')}</tr></thead>`;
+  const head=`<thead><tr><th style="width:42px">순위</th>${thL('캠페인','campaign')}${thN('구분','g')}${thN('광고비','c')}${thN(ch?'매출(채널ID)':'매출','rv')}${thN('ROAS','roas')}${thN('CP_UV','cpUV')}${thN('APP_CP_UV','appCpUV')}${thN('설치','ins')}${thN('가입','su')}${thN('첫구매','fo')}${thN('첫구매CPA','cpaFo')}</tr></thead>`;
   const body=cps.slice(0,limit).map((c,i)=>`<tr>
     <td class="rank">${i+1}</td>
     <td class="lft"><span class="cname" title="${campLabel(c.campaign)}">${campLabel(c.campaign)}</span><br><span class="chl">${c.media} · ${c.s} · ${c.t} · ${c.o2}</span></td>
     <td><span class="gtag" style="background:${(gColors[c.g]||'#64748b')}22;color:${gColors[c.g]||'#64748b'}">${c.g}</span></td>
-    <td>${c.c?WC(c.c):'<span class=muted>0</span>'}</td><td>${WC(c.rv)}</td>
-    ${roasCell(c.roas)}${cpCell(c.cpUV)}${cpCell(c.appCpUV)}<td>${F.num(c.ins)}</td><td>${F.num(c.su)}</td><td>${F.num(c.fo)}</td>
+    <td>${c.c?WC(c.c):'<span class=muted>0</span>'}</td><td>${WC(rvOf(c))}</td>
+    ${roasCell(roasOf(c))}${cpCell(c.cpUV)}${cpCell(c.appCpUV)}<td>${F.num(c.ins)}</td><td>${F.num(c.su)}</td><td>${F.num(c.fo)}</td>
     <td>${c.cpaFo==null?'<span class=muted>—</span>':F.won(c.cpaFo)}</td></tr>`).join('');
   document.getElementById('campTbl').innerHTML=head+'<tbody>'+(body||`<tr><td colspan=12 class=muted style="text-align:center;padding:24px">결과 없음</td></tr>`)+'</tbody>';
   const more=document.getElementById('campMore');
@@ -532,20 +548,21 @@ function renderCampTbl(){
 function renderSojaeTbl(){
   const s=state.sojaeSort; let cps=sojaeAgg();
   if(state.sojaeSearch){const q=state.sojaeSearch.toLowerCase();cps=cps.filter(c=>c.sojae.toLowerCase().includes(q)||c.campaign.toLowerCase().includes(q)||c.media.includes(state.sojaeSearch));}
-  cps.sort((a,b)=>{const x=a[s.key]??-1,y=b[s.key]??-1;return(x<y?-1:x>y?1:0)*s.dir;});
+  cps.sort((a,b)=>{const x=sortVal(a,s.key)??-1,y=sortVal(b,s.key)??-1;return(x<y?-1:x>y?1:0)*s.dir;});
   const total=cps.length;
+  const ch=state.revMode==='channel';
   const limit=state.sojaeExpanded?Math.min(total,300):15;
   const thL=(label,key)=>{const act=s.key===key;const ar=act?(s.dir<0?'▼':'▲'):'▲';
     return `<th class="sortable lft ${act?'act':''}" data-k="${key}">${label}<span class="arr">${ar}</span></th>`;};
   const thN=(label,key)=>{const act=s.key===key;const ar=act?(s.dir<0?'▼':'▲'):'▲';
     return `<th class="sortable ${act?'act':''}" data-k="${key}" style="width:1px;white-space:nowrap">${label}<span class="arr">${ar}</span></th>`;};
-  const head=`<thead><tr><th style="width:42px">순위</th>${thL('소재','sojae')}${thN('구분','g')}${thN('광고비','c')}${thN('매출','rv')}${thN('ROAS','roas')}${thN('설치','ins')}${thN('가입','su')}${thN('첫구매','fo')}${thN('첫구매CPA','cpaFo')}</tr></thead>`;
+  const head=`<thead><tr><th style="width:42px">순위</th>${thL('소재','sojae')}${thN('구분','g')}${thN('광고비','c')}${thN(ch?'매출(채널ID)':'매출','rv')}${thN('ROAS','roas')}${thN('설치','ins')}${thN('가입','su')}${thN('첫구매','fo')}${thN('첫구매CPA','cpaFo')}</tr></thead>`;
   const body=cps.slice(0,limit).map((c,i)=>`<tr>
     <td class="rank">${i+1}</td>
     <td class="lft"><span class="cname" title="${campLabel(c.sojae)}">${campLabel(c.sojae)}</span><br><span class="chl">${c.media} · ${campLabel(c.campaign)}</span></td>
     <td><span class="gtag" style="background:${(gColors[c.g]||'#64748b')}22;color:${gColors[c.g]||'#64748b'}">${c.g}</span></td>
-    <td>${c.c?WC(c.c):'<span class=muted>0</span>'}</td><td>${WC(c.rv)}</td>
-    ${roasCell(c.roas)}<td>${F.num(c.ins)}</td><td>${F.num(c.su)}</td><td>${F.num(c.fo)}</td>
+    <td>${c.c?WC(c.c):'<span class=muted>0</span>'}</td><td>${WC(rvOf(c))}</td>
+    ${roasCell(roasOf(c))}<td>${F.num(c.ins)}</td><td>${F.num(c.su)}</td><td>${F.num(c.fo)}</td>
     <td>${c.cpaFo==null?'<span class=muted>—</span>':F.won(c.cpaFo)}</td></tr>`).join('');
   document.getElementById('sojaeTbl').innerHTML=head+'<tbody>'+(body||`<tr><td colspan=10 class=muted style="text-align:center;padding:24px">결과 없음</td></tr>`)+'</tbody>';
   const more=document.getElementById('sojaeMore');
@@ -810,6 +827,9 @@ function renderSelsum(){
 function bind(){
   document.getElementById('metricSeg').onclick=e=>{const b=e.target.closest('button');if(!b)return;
     state.metric=b.dataset.m;[...e.currentTarget.children].forEach(x=>x.classList.toggle('on',x===b));renderTrend();};
+  document.getElementById('revModeSeg').onclick=e=>{const b=e.target.closest('button');if(!b)return;
+    state.revMode=b.dataset.v;[...e.currentTarget.children].forEach(x=>x.classList.toggle('on',x===b));
+    renderKPIs();renderMediaChart();renderMediaTbl();renderCampTbl();renderSojaeTbl();};
   document.getElementById('campSearch').oninput=e=>{state.search=e.target.value;renderCampTbl();};
   document.getElementById('sojaeSearch').oninput=e=>{state.sojaeSearch=e.target.value;renderSojaeTbl();};
   document.getElementById('promoSearch').oninput=e=>{state.promoSearch=e.target.value;renderPromoTbl();};
