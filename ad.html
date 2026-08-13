@@ -447,8 +447,8 @@ function renderTrend(){
   if(state.metric==='money'){
     cfg={type:'bar',data:{labels:labels.map(md),datasets:[
       {label:'광고비',data:g.map(x=>x.c),backgroundColor:'rgba(37,99,235,0.55)',borderRadius:4,yAxisID:'y',order:2},
-      {label:'매출',type:'line',data:g.map(x=>x.rv),borderColor:'#059669',backgroundColor:'rgba(5,150,105,0.08)',borderWidth:2.5,tension:.35,fill:true,pointRadius:0,yAxisID:'y',order:1},
-      {label:'ROAS(%)',type:'line',data:g.map(x=>x.c>0?x.rv/x.c*100:null),borderColor:'#d97706',borderWidth:2,borderDash:[5,4],tension:.35,pointRadius:0,yAxisID:'y1',order:0},
+      {label:state.revMode==='channel'?'매출(채널ID)':'매출',type:'line',data:g.map(rvOf),borderColor:'#059669',backgroundColor:'rgba(5,150,105,0.08)',borderWidth:2.5,tension:.35,fill:true,pointRadius:0,yAxisID:'y',order:1},
+      {label:'ROAS(%)',type:'line',data:g.map(x=>x.c>0?rvOf(x)/x.c*100:null),borderColor:'#d97706',borderWidth:2,borderDash:[5,4],tension:.35,pointRadius:0,yAxisID:'y1',order:0},
     ]}};
   }else{
     cfg={type:'line',data:{labels:labels.map(md),datasets:[
@@ -864,7 +864,7 @@ function bind(){
     state.metric=b.dataset.m;[...e.currentTarget.children].forEach(x=>x.classList.toggle('on',x===b));renderTrend();};
   document.getElementById('revModeSeg').onclick=e=>{const b=e.target.closest('button');if(!b)return;
     state.revMode=b.dataset.v;[...e.currentTarget.children].forEach(x=>x.classList.toggle('on',x===b));
-    renderKPIs();renderMediaChart();renderMediaTbl();renderCampTbl();renderPromoTbl();renderSojaeTbl();};
+    renderKPIs();renderTrend();renderMediaChart();renderMediaTbl();renderCampTbl();renderPromoTbl();renderSojaeTbl();};
   document.getElementById('campSearch').oninput=e=>{state.search=e.target.value;renderCampTbl();};
   document.getElementById('sojaeSearch').oninput=e=>{state.sojaeSearch=e.target.value;renderSojaeTbl();};
   document.getElementById('promoSearch').oninput=e=>{state.promoSearch=e.target.value;renderPromoTbl();};
