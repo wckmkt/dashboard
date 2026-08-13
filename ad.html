@@ -122,6 +122,13 @@
   .morebtn button{padding:7px 18px;border:1px solid var(--border-bright);background:transparent;color:var(--text-2);
     font-size:12.5px;font-weight:600;border-radius:8px;cursor:pointer;font-family:inherit;transition:.15s;}
   .morebtn button:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-glow);}
+  /* 프로모션별 실적 — 기획전 행 클릭 시 매체 하위행 펼침 */
+  tr.prow{cursor:pointer;}
+  tr.prow-open{background:var(--bg-card2);}
+  .caret{display:inline-block;width:13px;color:var(--text-3);font-size:9px;vertical-align:middle;}
+  tr.prow-open .caret{color:var(--accent);}
+  tr.subrow td{color:var(--text-2);background:var(--bg-card2);border-bottom:1px solid var(--border);}
+  .subm{color:var(--text-2);font-size:12px;padding-left:13px;}
   .cname{max-width:330px;overflow:hidden;text-overflow:ellipsis;display:inline-block;vertical-align:middle;}
   .chl{color:var(--text-3);font-size:11px;}
   .roas-good{color:var(--green);font-weight:700;} .roas-mid{color:var(--yellow);font-weight:700;} .roas-bad{color:var(--red);font-weight:700;}
@@ -215,6 +222,15 @@
 
   <div class="card">
     <div class="card-h">
+      <div class="card-t"><span class="bar"></span>프로모션별 실적 <span class="card-sub" style="font-weight:500;margin-left:6px;" id="promoSub"></span></div>
+      <input class="search" id="promoSearch" placeholder="기획전 검색…">
+    </div>
+    <div class="tbl-wrap"><table id="promoTbl"></table></div>
+    <div class="morebtn" id="promoMore"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
       <div class="card-t"><span class="bar"></span>소재 성과 <span class="card-sub" style="font-weight:500;margin-left:6px;">SA(검색)는 소재 구분이 없어 DA만 표시</span></div>
       <input class="search" id="sojaeSearch" placeholder="소재 검색…">
     </div>
@@ -244,14 +260,6 @@
       <div class="donut-card"><div class="donut-t">DA 매체 비중</div><div class="donut-box" style="height:300px"><canvas id="dn_mediaDA"></canvas></div></div>
       <div class="donut-card"><div class="donut-t">SA 매체 비중</div><div class="donut-box" style="height:300px"><canvas id="dn_mediaSA"></canvas></div></div>
     </div>
-  </div>
-  <div class="card">
-    <div class="card-h">
-      <div class="card-t"><span class="bar"></span>기획전별 광고비 순위</div>
-      <input class="search" id="promoSearch" placeholder="기획전 검색…">
-    </div>
-    <div class="tbl-wrap"><table id="promoTbl"></table></div>
-    <div class="morebtn" id="promoMore"></div>
   </div>
  </div><!-- /tab2 -->
 
@@ -346,7 +354,8 @@ let DATA, minDate, maxDate, selMin, GAPSET=new Set();
 let state={ start:null, end:null, preset:7, metric:'money', revMode:'mmp',
   f:{s:'전체',g:'전체',t:'전체',o1:'전체',o2:'전체'},
   campSort:{key:'c',dir:-1}, mediaSort:{key:'c',dir:-1}, sojaeSort:{key:'rv',dir:-1}, promoSort:{key:'c',dir:-1},
-  search:'', sojaeSearch:'', promoSearch:'', campExpanded:false, mediaExpanded:false, sojaeExpanded:false, promoExpanded:false, tab:'perf' };
+  search:'', sojaeSearch:'', promoSearch:'', campExpanded:false, mediaExpanded:false, sojaeExpanded:false, promoExpanded:false,
+  promoOpen:new Set(), tab:'perf' };
 let trendChart, mediaChart;
 
 // 날짜 유틸 (문자열 yyyy-mm-dd 비교 = 시간순)
@@ -577,36 +586,61 @@ function renderSojaeTbl(){
 }
 
 const sColors={'전관행사':'#059669','영업지원':'#d97706','상시':'#7c3aed'};
+// 기획전 단독 키로 집계. 대표사업부는 걸치는 경우가 있어 set으로 모으고, 매체별 하위집계를 같이 들고 있는다.
 function promoAgg(){
   const by={};
+  let cAll=0, cNamed=0;
   inRows().forEach(r=>{
+    cAll+=r.c;
     if(!r.promo) return;
-    const k=r.promo+'|'+r.s;
-    if(!by[k]) by[k]={promo:r.promo,s:r.s,...emptyAgg()};
-    add(by[k],r);
+    cNamed+=r.c;
+    let p=by[r.promo];
+    if(!p) p=by[r.promo]={promo:r.promo,sSet:new Set(),byMedia:{},...emptyAgg()};
+    add(p,r); p.sSet.add(r.s);
+    const m=p.byMedia[r.media]||(p.byMedia[r.media]={media:r.media,...emptyAgg()});
+    add(m,r);
   });
-  return Object.values(by).map(x=>({...x,...derive(x)}));
+  const list=Object.values(by).map(p=>({...p,...derive(p),
+    sList:[...p.sSet],
+    media:Object.values(p.byMedia).map(m=>({...m,...derive(m)})) }));
+  return {list, unnamedShare:cAll>0?(cAll-cNamed)/cAll*100:0};
 }
 function renderPromoTbl(){
-  const s=state.promoSort; let ps=promoAgg();
+  const s=state.promoSort; const agg=promoAgg(); let ps=agg.list;
+  document.getElementById('promoSub').textContent=
+    `기획전 미지정 광고비 ${agg.unnamedShare.toFixed(0)}% 제외 · 행 클릭 시 매체별 분해`;
   if(state.promoSearch){const q=state.promoSearch.toLowerCase();ps=ps.filter(p=>p.promo.toLowerCase().includes(q));}
-  ps.sort((a,b)=>{const x=a[s.key]??-1,y=b[s.key]??-1;return(x<y?-1:x>y?1:0)*s.dir;});
+  ps.sort((a,b)=>{const x=sortVal(a,s.key)??-1,y=sortVal(b,s.key)??-1;return(x<y?-1:x>y?1:0)*s.dir;});
   const total=ps.length;
   const limit=state.promoExpanded?Math.min(total,200):15;
   const thL=(label,key)=>{const act=s.key===key;const ar=act?(s.dir<0?'▼':'▲'):'▲';
     return `<th class="sortable lft ${act?'act':''}" data-k="${key}">${label}<span class="arr">${ar}</span></th>`;};
   const thN=(label,key)=>{const act=s.key===key;const ar=act?(s.dir<0?'▼':'▲'):'▲';
     return `<th class="sortable ${act?'act':''}" data-k="${key}" style="width:1px;white-space:nowrap">${label}<span class="arr">${ar}</span></th>`;};
-  const head=`<thead><tr><th style="width:40px">순위</th>${thL('기획전','promo')}<th class="lft" style="width:90px">대표사업부</th>${thN('광고비','c')}${thN('매출','rv')}${thN('ROAS','roas')}${thN('CP_UV','cpUV')}${thN('APP_CP_UV','appCpUV')}${thN('가입','su')}${thN('첫구매','fo')}${thN('첫구매CPA','cpaFo')}</tr></thead>`;
+  const ch=state.revMode==='channel';
+  const head=`<thead><tr><th style="width:40px">순위</th>${thL('기획전','promo')}<th class="lft" style="width:90px">대표사업부</th>${thN('광고비','c')}${thN(ch?'매출(채널ID)':'매출','rv')}${thN('ROAS','roas')}${thN('CP_UV','cpUV')}${thN('APP_CP_UV','appCpUV')}${thN('가입','su')}${thN('첫구매','fo')}${thN('첫구매CPA','cpaFo')}</tr></thead>`;
   const cpCell=v=>`<td>${v==null?'<span class=muted>—</span>':F.won(v)}</td>`;
-  const body=ps.slice(0,limit).map((p,i)=>`<tr>
+  // 기획전행과 매체 하위행이 같은 지표 컬럼을 쓰므로 셀 묶음을 공유한다
+  const metricCells=o=>`<td>${o.c?WC(o.c):'<span class=muted>0</span>'}</td><td>${WC(rvOf(o))}</td>
+    ${roasCell(roasOf(o))}${cpCell(o.cpUV)}${cpCell(o.appCpUV)}
+    <td>${F.num(o.su)}</td><td>${F.num(o.fo)}</td>
+    <td>${o.cpaFo==null?'<span class=muted>—</span>':F.won(o.cpaFo)}</td>`;
+  const sTag=p=>{const c=sColors[p.sList[0]]||'#64748b';
+    const label=p.sList.length>1?`${p.sList[0]} 외 ${p.sList.length-1}`:(p.sList[0]||'—');
+    return `<span class="gtag" title="${p.sList.join(', ')}" style="background:${c}22;color:${c}">${label}</span>`;};
+  const body=ps.slice(0,limit).map((p,i)=>{
+    const open=state.promoOpen.has(p.promo);
+    const subs=open?[...p.media].sort((a,b)=>{const x=sortVal(a,s.key)??-1,y=sortVal(b,s.key)??-1;return(x<y?-1:x>y?1:0)*s.dir;}):[];
+    return `<tr class="prow${open?' prow-open':''}" data-p="${encodeURIComponent(p.promo)}">
     <td class="rank">${i+1}</td>
-    <td class="lft"><span class="cname" title="${p.promo}">${p.promo}</span></td>
-    <td class="lft"><span class="gtag" style="background:${(sColors[p.s]||'#64748b')}22;color:${sColors[p.s]||'#64748b'}">${p.s||'—'}</span></td>
-    <td>${p.c?WC(p.c):'<span class=muted>0</span>'}</td><td>${WC(p.rv)}</td>
-    ${roasCell(p.roas)}${cpCell(p.cpUV)}${cpCell(p.appCpUV)}
-    <td>${F.num(p.su)}</td><td>${F.num(p.fo)}</td>
-    <td>${p.cpaFo==null?'<span class=muted>—</span>':F.won(p.cpaFo)}</td></tr>`).join('');
+    <td class="lft"><span class="caret">${open?'▼':'▶'}</span><span class="cname" title="${p.promo}">${p.promo}</span>
+      <span class="chl">매체 ${p.media.length}</span></td>
+    <td class="lft">${sTag(p)}</td>
+    ${metricCells(p)}</tr>`
+    + subs.map(m=>`<tr class="subrow">
+    <td></td><td class="lft"><span class="subm">└ ${m.media}</span></td><td></td>
+    ${metricCells(m)}</tr>`).join('');
+  }).join('');
   document.getElementById('promoTbl').innerHTML=head+'<tbody>'+(body||`<tr><td colspan=11 class=muted style="text-align:center;padding:24px">데이터 없음</td></tr>`)+'</tbody>';
   const more=document.getElementById('promoMore');
   if(total>15){
@@ -664,7 +698,6 @@ function renderBudget(){
   renderDonut('dn_o2',budgetAgg('o2'),'구매',saC);
   renderDonut('dn_mediaDA',groupSmall(budgetAgg('media','DA'),3));
   renderDonut('dn_mediaSA',groupSmall(budgetAgg('media','SA'),3));
-  safe('PromoTbl',renderPromoTbl);
   const sub=document.getElementById('budgetSub'); if(sub)sub.textContent=`${state.start} ~ ${state.end} · 광고비 기준`;
 }
 function refresh(){
@@ -773,7 +806,7 @@ function renderDetail(g){
 function safe(name,fn){ try{ fn(); }catch(e){ console.error('['+name+'] 렌더 오류:',e); } }
 function renderAll(){
   safe('KPI',renderKPIs); safe('Trend',renderTrend); safe('MediaChart',renderMediaChart);
-  safe('MediaTbl',renderMediaTbl); safe('CampTbl',renderCampTbl); safe('SojaeTbl',renderSojaeTbl);
+  safe('MediaTbl',renderMediaTbl); safe('CampTbl',renderCampTbl); safe('PromoTbl',renderPromoTbl); safe('SojaeTbl',renderSojaeTbl);
   const d=document.getElementById('mediaSub'); if(d)d.textContent=`${state.start} ~ ${state.end}`;
 }
 
@@ -831,7 +864,7 @@ function bind(){
     state.metric=b.dataset.m;[...e.currentTarget.children].forEach(x=>x.classList.toggle('on',x===b));renderTrend();};
   document.getElementById('revModeSeg').onclick=e=>{const b=e.target.closest('button');if(!b)return;
     state.revMode=b.dataset.v;[...e.currentTarget.children].forEach(x=>x.classList.toggle('on',x===b));
-    renderKPIs();renderMediaChart();renderMediaTbl();renderCampTbl();renderSojaeTbl();};
+    renderKPIs();renderMediaChart();renderMediaTbl();renderCampTbl();renderPromoTbl();renderSojaeTbl();};
   document.getElementById('campSearch').oninput=e=>{state.search=e.target.value;renderCampTbl();};
   document.getElementById('sojaeSearch').oninput=e=>{state.sojaeSearch=e.target.value;renderSojaeTbl();};
   document.getElementById('promoSearch').oninput=e=>{state.promoSearch=e.target.value;renderPromoTbl();};
@@ -843,8 +876,14 @@ function bind(){
     const k=t.dataset.k;state.campSort.dir=state.campSort.key===k?-state.campSort.dir:-1;state.campSort.key=k;renderCampTbl();};
   document.getElementById('sojaeTbl').onclick=e=>{const t=e.target.closest('th[data-k]');if(!t)return;
     const k=t.dataset.k;state.sojaeSort.dir=state.sojaeSort.key===k?-state.sojaeSort.dir:-1;state.sojaeSort.key=k;renderSojaeTbl();};
-  document.getElementById('promoTbl').onclick=e=>{const t=e.target.closest('th[data-k]');if(!t)return;
-    const k=t.dataset.k;state.promoSort.dir=state.promoSort.key===k?-state.promoSort.dir:-1;state.promoSort.key=k;renderPromoTbl();};
+  document.getElementById('promoTbl').onclick=e=>{
+    const t=e.target.closest('th[data-k]');
+    if(t){const k=t.dataset.k;state.promoSort.dir=state.promoSort.key===k?-state.promoSort.dir:-1;state.promoSort.key=k;renderPromoTbl();return;}
+    const row=e.target.closest('tr.prow');   // 기획전 행 클릭 → 매체 분해 토글
+    if(!row)return;
+    const k=decodeURIComponent(row.dataset.p);
+    state.promoOpen.has(k)?state.promoOpen.delete(k):state.promoOpen.add(k);
+    renderPromoTbl();};
 }
 
 async function init(){
