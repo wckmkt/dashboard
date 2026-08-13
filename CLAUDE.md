@@ -10,6 +10,7 @@
   - `C:\bang\pmkt-dashboard` = 이 레포(대시보드·데이터, 커밋 대상).
   - `C:\bang` = 파이프라인 스크립트(gen_realtime_dashboard.py, teams_notify.ps1 등). **명시적 요청 없이는 커밋하지 말 것.**
 - 세션 작업 디렉토리는 보통 `KPI/`. 상세 운영지식은 fable5 로컬 memory에만 있으니, **모델 무관 규칙은 이 CLAUDE.md가 유일 소스**.
+- 이 레포에는 **광고 성과 대시보드(`ad.html`)도 함께** 있다. 데이터·파이프라인이 완전히 별개이므로 아래 전용 섹션을 볼 것.
 
 ## 철칙 (Golden Rules — 검증 게이트)
 
@@ -47,6 +48,29 @@ API 키를 절대 에코·저장·재사용하지 않는다. 사용자 스크린
 - `C:\bang\teams_notify.ps1` — Teams 알림(웹훅 URL, `#daily`/`#realtime` 앵커 분기).
 - `C:\bang\pmkt_hourly_sync.ps1` — 시간별 동기화 오케스트레이션(BIZW/GA4 → Excel → JSON → push → Teams).
 - `C:\bang\jiwoni-flow-spec.md` — 지원이 Power Automate Flow A/B 스펙(시스템 프롬프트 포함).
+- `ad.html` / `ad-data.json` — 광고 성과 대시보드(아래 전용 섹션).
+- `C:\bang\jiwon\scripts\build-ad-data.ps1` — 광고raw → ad-data.json 집계. `$COL` 인덱스 맵 주의.
+- `C:\bang\jiwon\scripts\daily-ad-dashboard.ps1` — 09:30 오케스트레이션(빌드 → JSON 검증 → 실패 시 백업 복원 → push).
+- `C:\bang\handover\인수인계.md` — 지원이 자동화 전반(Q&A봇·브리핑 3종·Airbridge 갭 보정). 광고 데이터가 어디서 오는지의 배경.
+
+## 광고 성과 대시보드 (`ad.html`) — 같은 레포, 다른 파이프라인
+
+KPI 대시보드와 **레포만 공유**할 뿐 데이터·생성 스크립트·담당이 전부 다르다. 위 R1~R8은 그대로 적용된다.
+
+- **대시보드**: `ad.html` — 단일 파일 정적 SPA. 탭 4개(광고 성과 / 광고비용 편성 / DA상세 / SA상세). `https://wckmkt.github.io/dashboard/ad.html`
+- **데이터**: `ad-data.json`(~12MB) — `C:\bang\jiwon\scripts\build-ad-data.ps1`이 대행사 광고raw 마스터파일을 Excel COM으로 읽어 생성. `daily-ad-dashboard.ps1`이 빌드→검증→push까지 수행하고, 작업스케줄러 **`지원이_광고대시보드`가 매일 09:30** 구동. 전체 실행 7~50분.
+- **원천**: `(PMKT)2026년_광고raw_마스터파일_v2.0.xlsx` `로데이터` 시트(25+26 통합, 84컬럼, 약 50만행). OneDrive에서 `_adtmp`로 robocopy 후 읽는다. **암호화 컨테이너라 zipfile/openpyxl로는 못 연다 — Excel COM만 가능.**
+- **스키마**: `meta`(generated/from/to/yoyFrom/yoyTo) + `dims` + `daily`(5개 차원별 일집계, YoY 밴드 포함) + `rows`(매체·캠페인·소재·기획전까지 granular, 올해 밴드만). 지표 11종 = `c ins su rv fo uv auv imp clk chRev asess`.
+- **기간 밴드**: 최근 90일 + 전년 고정밴드(1/1~12/31). 매 실행마다 전체 재생성되므로 **지표를 추가해도 과거분이 자동으로 채워진다**(백필 불필요).
+
+### 이 대시보드의 함정 (실제로 사고가 났던 지점)
+
+1. **`$COL` 인덱스 맵은 컬럼 "순서"에 종속된다.** build-ad-data.ps1 상단의 `$COL` 해시는 마스터 시트의 컬럼 번호를 하드코딩한다. 대행사가 컬럼을 끼워넣으면 **에러 없이 엉뚱한 값**이 들어온다. 마스터 구조가 바뀌었다는 낌새가 있으면 `C:\bang\jiwon\scripts\_adtmp\header_dump.txt`(84컬럼 덤프)와 대조부터 한다. 없으면 같은 폴더의 `dump_headers.ps1`로 1행을 다시 덤프한다(작업용 폴더라 지워졌을 수 있음).
+2. **채널ID 계열 지표(`uv` `auv` `asess` `chRev`)는 채널ID 단위로만 적재된다.** 소재명이 붙은 행에는 90일 내내 단 한 건도 없다(2026-08-13 확인). 그래서 소재 표에는 CP_UV·APP세션류를 넣지 않는다 — 넣으면 전량 0인 죽은 컬럼이 된다. 소재 단위로 볼 수 있는 건 MMP 계열(설치·가입·첫구매)뿐.
+3. **매출·ROAS는 반드시 `rvOf()`/`roasOf()`를 거친다.** 상단 `MMP / 채널ID` 토글이 이걸로 동작한다. `o.rv`/`o.roas`를 직접 쓰면 토글이 조용히 무시된다(기획전 표·일별 추이에서 실제로 발생). **값을 고쳤으면 `revModeSeg` 핸들러의 재렌더 목록에도 그 함수를 추가**해야 한다 — 둘 중 하나만 고치면 증상이 그대로다.
+4. **DA상세/SA상세 탭은 MMP 고정**이다(토글 UI가 tab1에만 있음). `state.revMode`는 전역이라 채널ID를 켜둔 채 넘어가면 기준이 조용히 바뀐다. 미해결 — 이 탭 수치를 논할 땐 MMP 기준임을 명시한다.
+5. **기획전 미지정 행이 광고비의 35~41%**다. 프로모션별 실적 표는 이를 제외하므로 합계가 전체와 안 맞는다(카드 부제에 비중 자동 표기).
+6. 소재행 기반 표(캠페인·소재·프로모션)는 `rows`를 쓰므로 **올해 90일만** 집계된다. YoY 비교가 필요하면 `daily`를 봐야 한다.
 
 ## 커밋 / 배포 규율
 - 데이터 커밋("data: … 갱신")은 파이프라인이 자동 생성한다.
