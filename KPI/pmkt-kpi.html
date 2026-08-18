@@ -1664,6 +1664,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
           <option value="sessApp">APP 세션수</option>
           <option value="join">신규가입</option>
           <option value="first">첫구매</option>
+          <option value="cancelRate">취반품률</option>
         </select>
       </div>
       <div class="card-sub" id="pd-trend-sub">순수주 일별 추이 (억원)</div>
@@ -3864,13 +3865,14 @@ let periodTrendChart = null;
 // 기간 내 일별 추이 차트 — 지표 선택 가능(순수주/총수주/주문건수/세션수/APP세션수/신규가입/첫구매)
 // renderPeriodView()에서 일별 배열을 한 번만 계산해 캐시해두고, 지표 전환 시엔 재조회 없이 차트만 다시 그림
 const PD_TREND_METRICS = {
-  net:     { label: '순수주',     kind: 'money' },
-  revenue: { label: '총수주',     kind: 'money' },
-  orders:  { label: '주문건수',   kind: 'count' },
-  sess:    { label: '세션수',     kind: 'count' },
-  sessApp: { label: 'APP 세션수', kind: 'count' },
-  join:    { label: '신규가입',   kind: 'count' },
-  first:   { label: '첫구매',     kind: 'count' },
+  net:        { label: '순수주',     kind: 'money' },
+  revenue:    { label: '총수주',     kind: 'money' },
+  orders:     { label: '주문건수',   kind: 'count' },
+  sess:       { label: '세션수',     kind: 'count' },
+  sessApp:    { label: 'APP 세션수', kind: 'count' },
+  join:       { label: '신규가입',   kind: 'count' },
+  first:      { label: '첫구매',     kind: 'count' },
+  cancelRate: { label: '취반품률',   kind: 'percent' },
 };
 let periodTrendSeries = null;
 
@@ -3932,7 +3934,7 @@ function renderPeriodView() {
 
   // 일별 시리즈 — 추이/전환율 차트가 공유. 매 호출마다 새로 만들어 캐시 불일치를 없앤다.
   const labels = [];
-  const series = { net: [], revenue: [], orders: [], sess: [], sessApp: [], join: [], first: [] };
+  const series = { net: [], revenue: [], orders: [], sess: [], sessApp: [], join: [], first: [], cancelRate: [] };
   const crS = { s2p: [], s2j: [], j2f: [] };
   let sessDays = 0, totalDays = 0;
   let d = parseLocalDate(from);
@@ -3958,6 +3960,7 @@ function renderPeriodView() {
     series.sessApp.push(dSessApp || null);
     series.join.push(dd.join || 0);
     series.first.push(dd.first || 0);
+    series.cancelRate.push(dGmv > 0 ? +((1 - dNet / dGmv) * 100).toFixed(1) : null);
     crS.s2p.push(dSess ? +(dOrders / dSess * 100).toFixed(2) : null);
     crS.s2j.push(dSess ? +((dd.join || 0) / dSess * 100).toFixed(2) : null);
     crS.j2f.push(dd.join ? +((dd.first || 0) / dd.join * 100).toFixed(1) : null);
@@ -4073,7 +4076,7 @@ function renderPeriodTrendChart() {
   const key = document.getElementById('pd-trend-metric')?.value || 'net';
   const m = PD_TREND_METRICS[key];
   const sub = document.getElementById('pd-trend-sub');
-  if (sub) sub.textContent = `${m.label} 일별 추이${m.kind === 'money' ? ' (억원)' : ''}`
+  if (sub) sub.textContent = `${m.label} 일별 추이${m.kind === 'money' ? ' (억원)' : m.kind === 'percent' ? ' (%)' : ''}`
     + (key === 'sess' || key === 'sessApp' ? ' · 트래픽 시트 보유 기간만 표시' : '');
 
   const canvas = document.getElementById('chart-period-trend');
