@@ -405,14 +405,15 @@ function yoyRange(){                         // 전년 동기(YoY)
 }
 
 // 증감 표기는 회사 관례를 따른다: 증가 '+12%', 감소 '▲12%'(부호·화살표를 섞지 않는다).
-// 색은 지표 성격이 아니라 방향 기준 — 증가 초록, 감소 빨강.
-function deltaSeg(curV,cmpV,ppt,label,title){
+// 색은 방향 기준(증가 초록·감소 빨강). 단 비용 지표는 cost=true로 반전 —
+// 광고비·CPA는 줄어드는 게 성과이므로 감소가 초록이다.
+function deltaSeg(curV,cmpV,cost,ppt,label,title){
   if(cmpV==null||curV==null||(!ppt&&cmpV===0))
     return `<span class="flat" title="${title}"><span class="dlab">${label}</span> <span class="muted">–</span></span>`;
   const val=ppt?(curV-cmpV):((curV-cmpV)/cmpV*100);
   const u=ppt?'%p':'%', a=Math.abs(val).toFixed(0), flat=Math.abs(val)<0.5;
   const txt=flat?'0'+u:(val<0?'▲'+a+u:'+'+a+u);
-  const cls=flat?'flat':(val>0?'up':'down');
+  const cls=flat?'flat':((cost?val<0:val>0)?'up':'down');
   return `<span class="${cls}" title="${title}"><span class="dlab">${label}</span> ${txt}</span>`;
 }
 function renderKPIs(){
@@ -429,20 +430,20 @@ function renderKPIs(){
   const rn=document.getElementById('revModeNote');
   if(rn) rn.textContent=ch?'채널ID(URL파라미터) 기준 매출 — 매체 보고값 대비 커버리지가 낮은 매체/기간이 있어 MMP 기준과 차이가 날 수 있음':'';
   const defs=[
-    {cls:'k-cost',lab:'광고비',f:WC,get:o=>o.c,sub:o=>o.c>0?`일평균 ${WC(o.c/days)}`:null},
+    {cls:'k-cost',lab:'광고비',f:WC,get:o=>o.c,cost:true,sub:o=>o.c>0?`일평균 ${WC(o.c/days)}`:null},
     {cls:'k-rev', lab:ch?'매출(채널ID)':'매출(보고)',f:WC,get:o=>ch?o.chRev:o.rv},
     {cls:'k-roas',lab:'ROAS',f:v=>v==null?'—':v.toFixed(0)+'%',get:o=>ch?o.roasCh:o.roas,ppt:true},
     {cls:'',lab:'설치',f:F.num,get:o=>o.ins},
     {cls:'',lab:'가입',f:F.num,get:o=>o.su},
     {cls:'',lab:'첫구매',f:F.num,get:o=>o.fo},
-    {cls:'k-cpa',lab:'가입 CPA',f:F.won,get:o=>o.cpaSu},
-    {cls:'k-cpa',lab:'첫구매 CPA',f:F.won,get:o=>o.cpaFo},
+    {cls:'k-cpa',lab:'가입 CPA',f:F.won,get:o=>o.cpaSu,cost:true},
+    {cls:'k-cpa',lab:'첫구매 CPA',f:F.won,get:o=>o.cpaFo,cost:true},
   ];
   document.getElementById('kpis').innerHTML=defs.map(d=>{
     const cv=d.get(cur), yvl=yoy?d.get(yoy):null, pvl=prev?d.get(prev):null;
     const subTxt=d.sub?d.sub(cur):null;
     return `<div class="kpi ${d.cls}"><div class="lab">${d.lab}</div><div class="val">${d.f(cv)}${subTxt?`<span class="kpi-sub">${subTxt}</span>`:''}</div>
-      <div class="delta">${deltaSeg(cv,yvl,d.ppt,'YoY',yoyT)}<span class="dsep">|</span>${deltaSeg(cv,pvl,d.ppt,'직전',prevT)}</div></div>`;
+      <div class="delta">${deltaSeg(cv,yvl,d.cost,d.ppt,'YoY',yoyT)}<span class="dsep">|</span>${deltaSeg(cv,pvl,d.cost,d.ppt,'직전',prevT)}</div></div>`;
   }).join('');
 }
 
@@ -531,19 +532,19 @@ function renderGSummary(){
   const totC=cur.DA.c+cur.SA.c;
   const yoyT=yv?`전년 동기 ${yv.ys} ~ ${yv.ye} 대비`:'전년 동기 데이터 없음';
   const ch=state.revMode==='channel';
-  const dd=(c,y,ppt)=>`<div class="yoy">${deltaSeg(c,y,ppt,'YoY',yoyT)}</div>`;
-  const cell=(c,y,f)=>`<td>${f(c)}${dd(c,y)}</td>`;
+  const dd=(c,y,cost,ppt)=>`<div class="yoy">${deltaSeg(c,y,cost,ppt,'YoY',yoyT)}</div>`;
+  const cell=(c,y,f,cost)=>`<td>${f(c)}${dd(c,y,cost)}</td>`;
   const head='<thead><tr>'+['구분','광고비','비중',ch?'매출(채널ID)':'매출','ROAS','설치','가입','첫구매','첫구매CPA']
     .map(l=>`<th>${l}</th>`).join('')+'</tr></thead>';
   const body=['DA','SA'].map(g=>{
     const a=derive(cur[g]), b=derive(yo[g]), col=gColors[g], rv=roasOf(a), rvY=roasOf(b);
     return `<tr><td><span class="gtag" style="background:${col}22;color:${col}">${g}</span></td>
-      ${cell(a.c,b.c,WC)}
+      ${cell(a.c,b.c,WC,true)}
       <td>${totC>0?(a.c/totC*100).toFixed(0)+'%':'<span class=muted>—</span>'}</td>
       ${cell(rvOf(a),rvOf(b),WC)}
-      <td class="${roasClass(rv)}">${rv==null?'<span class=muted>—</span>':rv.toFixed(0)+'%'}${dd(rv,rvY,true)}</td>
+      <td class="${roasClass(rv)}">${rv==null?'<span class=muted>—</span>':rv.toFixed(0)+'%'}${dd(rv,rvY,false,true)}</td>
       ${cell(a.ins,b.ins,F.num)}${cell(a.su,b.su,F.num)}${cell(a.fo,b.fo,F.num)}
-      ${cell(a.cpaFo,b.cpaFo,F.won)}</tr>`;
+      ${cell(a.cpaFo,b.cpaFo,F.won,true)}</tr>`;
   }).join('');
   document.getElementById('gsumTbl').innerHTML=head+'<tbody>'+body+'</tbody>';
   const s=document.getElementById('gsumSub');
