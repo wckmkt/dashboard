@@ -368,6 +368,8 @@ let trendChart, mediaChart;
 // 날짜 유틸 (문자열 yyyy-mm-dd 비교 = 시간순)
 function addDays(ds,n){ const [y,m,d]=ds.split('-').map(Number); const dt=new Date(Date.UTC(y,m-1,d));
   dt.setUTCDate(dt.getUTCDate()+n); return dt.toISOString().slice(0,10); }
+function weekStart(ds){ const [y,m,d]=ds.split('-').map(Number); const dt=new Date(Date.UTC(y,m-1,d));
+  dt.setUTCDate(dt.getUTCDate()-((dt.getUTCDay()+6)%7)); return dt.toISOString().slice(0,10); }  // 월요일 시작
 function monthStart(ds){ const [y,m]=ds.split('-').map(Number); return `${y}-${String(m).padStart(2,'0')}-01`; }
 function monthEnd(ds){ const [y,m]=ds.split('-').map(Number); return new Date(Date.UTC(y,m,0)).toISOString().slice(0,10); }
 function shiftYear(ds,n){ const [y,m,d]=ds.split('-').map(Number); const dt=new Date(Date.UTC(y+n,m-1,d));
@@ -391,12 +393,36 @@ const matchF=r=>DIMS.every(d=>state.f[d]==='전체'||r[d]===state.f[d]);
 
 const inDaily=()=>DATA.daily.filter(r=>r.dt>=state.start&&r.dt<=state.end&&matchF(r)); // KPI/추이(YoY밴드 포함)
 const inRows=()=>DATA.rows.filter(r=>r.dt>=state.start&&r.dt<=state.end&&matchF(r));   // 매체/캠페인/소재 표(올해)
+// 비교 기간은 선택한 프리셋의 '단위'에 맞춘다. 무조건 바로 앞 N일로 잡으면
+// 당월(8/1~8/18)이 7/14~7/31 처럼 달 중간에서 잘린 구간과 비교되어 월간 수치로 쓸 수 없다.
 function prevRange(){
-  const len=dayspan(state.start,state.end);
-  const pe=addDays(state.start,-1), ps=addDays(pe,-(len-1));
-  if(ps<selMin) return null;               // 직전 기간이 현재 밴드 시작 이전이면 비교 안 함
+  const p=String(state.preset), len=dayspan(state.start,state.end);
+  let ps,pe;
+  if(p==='month'){                          // 당월 → 전월 같은 일수(1일부터)
+    const lm=addDays(monthStart(state.start),-1);
+    ps=monthStart(lm); pe=addDays(ps,len-1);
+    const lmEnd=monthEnd(lm); if(pe>lmEnd) pe=lmEnd;   // 전월이 더 짧으면 말일로 클램프
+  } else if(p==='lastMonth'){               // 전월 → 전전월 전체
+    const pm=addDays(monthStart(state.start),-1);
+    ps=monthStart(pm); pe=monthEnd(pm);
+  } else if(p==='week'){                    // 금주 → 지난주 같은 요일 수(월요일 정렬)
+    ps=addDays(state.start,-7); pe=addDays(ps,len-1);
+  } else {                                  // 전일·최근 N일·사용자 지정 → 바로 앞 동일 일수
+    pe=addDays(state.start,-1); ps=addDays(pe,-(len-1));
+  }
+  if(ps<selMin) return null;               // 비교 기간이 현재 밴드 시작 이전이면 비교 안 함
   const r=DATA.daily.filter(x=>x.dt>=ps&&x.dt<=pe&&matchF(x));
   return r.length?{rows:r,ps,pe}:null;
+}
+// 비교 대상을 이름으로 부른다 — '직전'만 띄우면 무엇과 비교 중인지 알 수 없다.
+function prevLabel(){
+  const p=String(state.preset);
+  if(p==='month') return '전월 동기';
+  if(p==='lastMonth') return '전전월';
+  if(p==='week') return '전주';
+  if(p==='1') return '전일';
+  if(p==='null'||p==='undefined') return `직전 ${dayspan(state.start,state.end)}일`;
+  return `직전 ${p}일`;
 }
 function yoyRange(){                         // 전년 동기(YoY)
   const ys=shiftYear(state.start,-1), ye=shiftYear(state.end,-1);
@@ -421,11 +447,12 @@ function renderKPIs(){
   const pv=prevRange(); const prev=pv?derive(pv.rows.reduce(add,emptyAgg())):null;
   const yv=yoyRange(); const yoy=yv?derive(yv.rows.reduce(add,emptyAgg())):null;
   const yoyT=yv?`전년 동기 ${yv.ys} ~ ${yv.ye} 대비`:'전년 동기 데이터 없음';
-  const prevT=pv?`직전 동일기간 ${pv.ps} ~ ${pv.pe} 대비`:'직전 기간 데이터 없음';
+  const pL=prevLabel();
+  const prevT=pv?`${pL} ${pv.ps} ~ ${pv.pe} 대비`:`${pL} 데이터 없음`;
   const days=Math.round((new Date(state.end)-new Date(state.start))/86400000)+1;
   const cn=document.getElementById('cmpNote');
   if(cn) cn.innerHTML=`<b style="color:var(--text-2)">YoY</b> = 전년 동기(${yv?yv.ys+' ~ '+yv.ye:'데이터 없음'}) · `
-    +`<b style="color:var(--text-2)">vs 직전</b> = 직전 동일기간(${pv?pv.ps+' ~ '+pv.pe:'데이터 없음'}) 대비`;
+    +`<b style="color:var(--text-2)">vs ${pL}</b> = ${pv?pv.ps+' ~ '+pv.pe:'데이터 없음'} 대비`;
   const ch=state.revMode==='channel';
   const rn=document.getElementById('revModeNote');
   if(rn) rn.textContent=ch?'채널ID(URL파라미터) 기준 매출 — 매체 보고값 대비 커버리지가 낮은 매체/기간이 있어 MMP 기준과 차이가 날 수 있음':'';
@@ -443,7 +470,7 @@ function renderKPIs(){
     const cv=d.get(cur), yvl=yoy?d.get(yoy):null, pvl=prev?d.get(prev):null;
     const subTxt=d.sub?d.sub(cur):null;
     return `<div class="kpi ${d.cls}"><div class="lab">${d.lab}</div><div class="val">${d.f(cv)}${subTxt?`<span class="kpi-sub">${subTxt}</span>`:''}</div>
-      <div class="delta">${deltaSeg(cv,yvl,d.cost,d.ppt,'YoY',yoyT)}<span class="dsep">|</span>${deltaSeg(cv,pvl,d.cost,d.ppt,'직전',prevT)}</div></div>`;
+      <div class="delta">${deltaSeg(cv,yvl,d.cost,d.ppt,'YoY',yoyT)}<span class="dsep">|</span>${deltaSeg(cv,pvl,d.cost,d.ppt,pL,prevT)}</div></div>`;
   }).join('');
 }
 
@@ -851,6 +878,7 @@ function renderAll(){
 // 기간 적용
 function applyPreset(v){ state.preset=v;
   if(v==='month'){ state.start=monthStart(maxDate); state.end=maxDate; }
+  else if(v==='week'){ state.start=weekStart(maxDate); state.end=maxDate; }
   else if(v==='lastMonth'){ const lm=addDays(monthStart(maxDate),-1); state.start=monthStart(lm); state.end=monthEnd(lm); }
   else { const n=+v; state.end=maxDate; state.start=addDays(maxDate,-(n-1)); }
   if(state.start<selMin)state.start=selMin; syncDateUI(); refresh(); }
@@ -869,7 +897,7 @@ function syncDateUI(){
 function renderFilters(){
   const L=DATA.meta.dimLabels;
   let html=`<div class="frow"><span class="flabel">기간</span>
-    <div class="seg" data-dim="preset">${[[1,'전일'],[7,'최근 7일'],[30,'30일'],['month','당월'],['lastMonth','전월']].map(([r,l])=>`<button data-v="${r}">${l}</button>`).join('')}</div>
+    <div class="seg" data-dim="preset">${[[1,'전일'],['week','금주'],[7,'최근 7일'],['month','당월'],['lastMonth','전월']].map(([r,l])=>`<button data-v="${r}">${l}</button>`).join('')}</div>
     <div class="dpick">
       <input type="date" id="dStart" min="${selMin}" max="${maxDate}">
       <span class="tilde">~</span>
