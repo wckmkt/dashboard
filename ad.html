@@ -93,6 +93,7 @@
   .kpi .delta .dlab{color:var(--text-3);font-weight:600;}
   .kpi .delta .dsep{color:var(--border-bright);font-weight:400;}
   .up{color:var(--green);} .down{color:var(--red);} .flat{color:var(--text-3);}
+  .yoy{font-size:10.5px;font-weight:700;margin-top:3px;} .yoy .dlab{color:var(--text-3);font-weight:600;} #gsumTbl th{cursor:default;}
   .card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);
     padding:20px;margin-bottom:22px;box-shadow:0 1px 3px rgba(15,23,42,0.04);}
   .card-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap;}
@@ -185,6 +186,12 @@
     <span id="revModeNote" class="card-sub"></span>
   </div>
   <div class="kpis" id="kpis"></div>
+
+  <div class="card" id="gsumCard">
+    <div class="card-h"><div class="card-t"><span class="bar"></span>DA / SA 실적 요약</div>
+      <span class="card-sub" id="gsumSub"></span></div>
+    <div class="tbl-wrap"><table id="gsumTbl"></table></div>
+  </div>
 
   <div class="card">
     <div class="card-h">
@@ -512,6 +519,35 @@ function renderMediaTbl(){
 }
 
 const gColors={DA:'#7c3aed',SA:'#2563eb'};
+// DA vs SA 비교 — 광고구분 필터가 '전체'일 때만 노출. 값 아래 YoY(ROAS는 %p).
+function renderGSummary(){
+  const card=document.getElementById('gsumCard');
+  card.style.display=state.f.g==='전체'?'':'none';
+  if(state.f.g!=='전체') return;
+  const cur={DA:emptyAgg(),SA:emptyAgg()}, yo={DA:emptyAgg(),SA:emptyAgg()};
+  inDaily().forEach(r=>{ if(cur[r.g]) add(cur[r.g],r); });
+  const yv=yoyRange(); if(yv) yv.rows.forEach(r=>{ if(yo[r.g]) add(yo[r.g],r); });
+  const totC=cur.DA.c+cur.SA.c;
+  const yoyT=yv?`전년 동기 ${yv.ys} ~ ${yv.ye} 대비`:'전년 동기 데이터 없음';
+  const ch=state.revMode==='channel';
+  const dd=(c,y,inv,ppt)=>`<div class="yoy">${deltaSeg(c,y,inv,ppt,'YoY',yoyT)}</div>`;
+  const cell=(c,y,f,inv)=>`<td>${f(c)}${dd(c,y,inv)}</td>`;
+  const head='<thead><tr>'+['구분','광고비','비중',ch?'매출(채널ID)':'매출','ROAS','설치','가입','첫구매','첫구매CPA']
+    .map(l=>`<th>${l}</th>`).join('')+'</tr></thead>';
+  const body=['DA','SA'].map(g=>{
+    const a=derive(cur[g]), b=derive(yo[g]), col=gColors[g], rv=roasOf(a), rvY=roasOf(b);
+    return `<tr><td><span class="gtag" style="background:${col}22;color:${col}">${g}</span></td>
+      ${cell(a.c,b.c,WC,true)}
+      <td>${totC>0?(a.c/totC*100).toFixed(0)+'%':'<span class=muted>—</span>'}</td>
+      ${cell(rvOf(a),rvOf(b),WC)}
+      <td class="${roasClass(rv)}">${rv==null?'<span class=muted>—</span>':rv.toFixed(0)+'%'}${dd(rv,rvY,false,true)}</td>
+      ${cell(a.ins,b.ins,F.num)}${cell(a.su,b.su,F.num)}${cell(a.fo,b.fo,F.num)}
+      ${cell(a.cpaFo,b.cpaFo,F.won,true)}</tr>`;
+  }).join('');
+  document.getElementById('gsumTbl').innerHTML=head+'<tbody>'+body+'</tbody>';
+  const s=document.getElementById('gsumSub');
+  if(s) s.textContent=`${state.start} ~ ${state.end} · 값 아래는 전년 동기(YoY) 대비 · ROAS는 %p`;
+}
 function campAgg(){
   const by={};
   inRows().forEach(r=>{const k=r.media+'|'+r.campaign;
@@ -806,7 +842,7 @@ function renderDetail(g){
 function safe(name,fn){ try{ fn(); }catch(e){ console.error('['+name+'] 렌더 오류:',e); } }
 function renderAll(){
   safe('KPI',renderKPIs); safe('Trend',renderTrend); safe('MediaChart',renderMediaChart);
-  safe('MediaTbl',renderMediaTbl); safe('CampTbl',renderCampTbl); safe('PromoTbl',renderPromoTbl); safe('SojaeTbl',renderSojaeTbl);
+  safe('MediaTbl',renderMediaTbl); safe('CampTbl',renderCampTbl); safe('PromoTbl',renderPromoTbl); safe('SojaeTbl',renderSojaeTbl); safe('GSum',renderGSummary);
   const d=document.getElementById('mediaSub'); if(d)d.textContent=`${state.start} ~ ${state.end}`;
 }
 
@@ -864,7 +900,7 @@ function bind(){
     state.metric=b.dataset.m;[...e.currentTarget.children].forEach(x=>x.classList.toggle('on',x===b));renderTrend();};
   document.getElementById('revModeSeg').onclick=e=>{const b=e.target.closest('button');if(!b)return;
     state.revMode=b.dataset.v;[...e.currentTarget.children].forEach(x=>x.classList.toggle('on',x===b));
-    renderKPIs();renderTrend();renderMediaChart();renderMediaTbl();renderCampTbl();renderPromoTbl();renderSojaeTbl();};
+    renderKPIs();renderTrend();renderMediaChart();renderMediaTbl();renderCampTbl();renderPromoTbl();renderSojaeTbl();renderGSummary();};
   document.getElementById('campSearch').oninput=e=>{state.search=e.target.value;renderCampTbl();};
   document.getElementById('sojaeSearch').oninput=e=>{state.sojaeSearch=e.target.value;renderSojaeTbl();};
   document.getElementById('promoSearch').oninput=e=>{state.promoSearch=e.target.value;renderPromoTbl();};
