@@ -4164,7 +4164,7 @@ function renderPeriodBrandTreemap() {
   const to   = document.getElementById('period-to')?.value;
   if (!from || !to || from > to || !Object.keys(BRAND_SALES).length) {
     if (periodBrandTreemapChart) { periodBrandTreemapChart.destroy(); periodBrandTreemapChart = null; }
-    if (note) note.textContent = 'BRAND_SALES 데이터 없음 (6_raw_브랜드 시트 확인 필요)';
+    if (note) note.textContent = 'BRAND_SALES 데이터 없음 (6_raw_브랜드카테고리 시트 확인 필요)';
     return;
   }
 
@@ -4176,21 +4176,30 @@ function renderPeriodBrandTreemap() {
   const cur  = aggBrandRevenue(from, to);
   const prev = aggBrandRevenue(prevFrom, prevTo);
 
-  const rows = [];
+  const allRows = [];
   for (const brand in cur) {
     const revenue = cur[brand];
     if (!revenue) continue;
     const prevRevenue = prev[brand] || 0;
     const growth = prevRevenue > 0 ? +((revenue - prevRevenue) / prevRevenue * 100).toFixed(1) : null;
-    rows.push({ brand, revenue, growth });
+    allRows.push({ brand, revenue, growth });
   }
 
   if (periodBrandTreemapChart) { periodBrandTreemapChart.destroy(); periodBrandTreemapChart = null; }
-  if (!rows.length) {
+  if (!allRows.length) {
     if (note) note.textContent = '선택 기간에 매출 데이터가 없습니다.';
     return;
   }
-  if (note) note.innerHTML = `<b>${from} ~ ${to}</b> 매출 규모 · 직전 동일기간(<b>${prevFrom} ~ ${prevTo}</b>) 대비 증감률`;
+
+  // 브랜드가 수백~수천 개 규모라 전부 그리면 타일이 안 보일 정도로 잘게 쪼개진다 —
+  // 매출 상위 TM_TOP_N개만 표시(Finviz류 히트맵도 시총 상위 종목만 보여주는 것과 동일 관례).
+  const TM_TOP_N = 40;
+  const rows = allRows.sort((a, b) => b.revenue - a.revenue).slice(0, TM_TOP_N);
+  const shownRevenue = rows.reduce((s, r) => s + r.revenue, 0);
+  const totalRevenue = allRows.reduce((s, r) => s + r.revenue, 0);
+  const shownPct = totalRevenue ? Math.round(shownRevenue / totalRevenue * 100) : 0;
+
+  if (note) note.innerHTML = `<b>${from} ~ ${to}</b> 매출 상위 ${rows.length}개 브랜드(전체 ${allRows.length}개 중 매출 ${shownPct}% 커버) · 직전 동일기간(<b>${prevFrom} ~ ${prevTo}</b>) 대비 증감률`;
 
   periodBrandTreemapChart = new Chart(canvas, {
     type: 'treemap',
