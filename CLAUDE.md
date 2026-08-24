@@ -43,7 +43,7 @@ API 키를 절대 에코·저장·재사용하지 않는다. 사용자 스크린
 
 ## 핵심 파일 지도
 - `KPI/pmkt-kpi.html` — 대시보드 전체. 탭 시스템(`ALL_VIEWS`/`showView`), 지원이 팝업(FAB + `jw*` 함수들), Chart.js 렌더러.
-- `KPI/pmkt_kpi_data.json` — `generated` + `RAW`(일→시간×[orders,revenue,net,dau,appdau,adcost]) + `DAILY` `DAILY_AD` `TRAFFIC` `CONV_CH` `DAILY_TGTS` `MONTHLY_TGTS` `REAL_MONTHLY` `CH_AD`(chid→[join,first,rev,sess]) `CH_AD_META` `BRAND_CAT`(날짜→브랜드→카테고리→매출액(원), `6_raw_브랜드카테고리` 시트 원본).
+- `KPI/pmkt_kpi_data.json` — `generated` + `RAW`(일→시간×[orders,revenue,net,dau,appdau,adcost]) + `DAILY` `DAILY_AD` `TRAFFIC` `CONV_CH` `DAILY_TGTS` `MONTHLY_TGTS` `REAL_MONTHLY` `CH_AD`(chid→[join,first,rev,sess]) `CH_AD_META` `BRAND_SALES`(날짜→브랜드→매출액(원), `6_raw_브랜드` 시트 원본).
 - `C:\bang\gen_realtime_dashboard.py` — `read_*_sheet()` + `main()`. Excel COM으로 마스터 읽어 JSON 생성·push.
 - `C:\bang\teams_notify.ps1` — Teams 알림(웹훅 URL, `#daily`/`#realtime` 앵커 분기).
 - `C:\bang\pmkt_hourly_sync.ps1` — 시간별 동기화 오케스트레이션(BIZW/GA4 → Excel → JSON → push → Teams).
