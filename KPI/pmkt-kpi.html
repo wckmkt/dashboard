@@ -1702,6 +1702,8 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
         <option value="기타">기타</option>
       </select>
       <span id="pdfn-period-note">· 선택 기간 일평균</span>
+      <button type="button" onclick="exportPdFunnelCSV()"
+        style="font-size:11px;border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:3px 9px;cursor:pointer;color:#475569">📥 CSV 다운로드</button>
     </span>
   </div>
   <div class="grid-32" style="margin-bottom:14px">
@@ -8028,8 +8030,10 @@ function buildFunnelFromTraffic() {
 // renderFunnelBlock()이 이미 화면에 쓰는 cm/pm/lz(단계 원시값)·cv/pv/yv(전환율)를
 // 반환값으로 그대로 받아 표로 바꿀 뿐, 새 계산은 하지 않는다(R2) — 화면과 항상 같은 값.
 let lastFunnelResult = null;
-function exportFunnelCSV() {
-  const r = lastFunnelResult;
+let lastPdFunnelResult = null;
+// renderFunnelBlock() 반환값(r) → CSV Blob 다운로드. Daily/기간조회 둘 다 같은 r 모양이라
+// 행 구성은 한 곳에서만 하고 파일명 접미사만 다르게 받는다(R2).
+function downloadFunnelCSV(r, fileSuffix) {
   if (!r) { alert('퍼널 데이터가 아직 준비되지 않았습니다.'); return; }
   const { cm, pm, lz, cv, pv, yv, avg, prevLbl, lyLbl, unitLbl, ch, app } = r;
   const round = v => v == null ? '' : Math.round(v);
@@ -8057,9 +8061,16 @@ function exportFunnelCSV() {
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = `funnel_${chLbl}_${scopeLbl}_${getEffectiveDailyDate()}.csv`;
+  a.href = url; a.download = `funnel_${chLbl}_${scopeLbl}_${fileSuffix}.csv`;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+function exportFunnelCSV() {
+  downloadFunnelCSV(lastFunnelResult, getEffectiveDailyDate());
+}
+function exportPdFunnelCSV() {
+  const r = lastPdFunnelResult;
+  downloadFunnelCSV(r, r ? `${r.from}_${r.to}` : '');
 }
 
 // 2026-08-09: 퍼널 흐름 카드는 선택한 채널로 스코프가 바뀌지만, Organic은 항상 최대
@@ -8271,13 +8282,15 @@ function renderPeriodFunnel() {
   const { days, prevFrom, prevTo, prevLbl } = pdPrevRange(from, to);
 
   const sel = document.getElementById('pd-funnel-ch-sel');
-  const result = renderFunnelBlock({
+  const result = lastPdFunnelResult = renderFunnelBlock({
     pfx: 'pd', ch: sel ? sel.value : '__total__', app: pdFunnelDevScope === 'app',
     cur:  { from, to },
     prev: { from: prevFrom, to: prevTo },
     ly:   { from: pdLastYear(from), to: pdLastYear(to) },
     prevLbl, lyLbl: '전년', unitLbl: '/일',
   });
+  lastPdFunnelResult.from = from;
+  lastPdFunnelResult.to = to;
 
   // 비교 기준이 기간 길이에 따라 바뀌므로 설명 문구도 함께 갱신한다 —
   // 고정 문구로 두면 화면이 실제 계산과 다른 말을 하게 된다.
