@@ -4280,7 +4280,10 @@ function renderPeriodBrandTreemap() {
   const allRows = [];
   for (const brand in cur) {
     const revenue = cur[brand][tmMetric];
-    if (!revenue) continue;
+    // 순수주는 취소·반품이 신규매출보다 많으면 음수가 될 수 있다 — 트리맵 타일 크기는
+    // 음수를 표현할 수 없으므로 0 이하는 제외(취반품 집중 브랜드는 트리맵 대신
+    // 취반품률 차트나 별도 리스트로 보는 게 맞다).
+    if (!revenue || revenue <= 0) continue;
     const prevRevenue = (prev[brand] && prev[brand][tmMetric]) || 0;
     const growth = prevRevenue > 0 ? +((revenue - prevRevenue) / prevRevenue * 100).toFixed(1) : null;
     allRows.push({ brand, revenue, growth });
