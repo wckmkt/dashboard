@@ -3936,6 +3936,39 @@ function pdShiftMonth(ds, n) {
   return localDateToStr(new Date(y, m, Math.min(d.getDate(), lastDay)));
 }
 
+// 일별 추이 비교선(전월/전년 동기간)용 최소 집계 — 메인 루프(renderPeriodView)와 같은
+// 필드셋을 계산하지만 sessDays/totalDays/crS 같은 메인 전용 부가값은 만들지 않는다.
+// from만 밀고 길이(days)를 강제로 맞춰서 인덱스별로 '선택기간 N일차 vs 비교기간 N일차'가
+// 항상 정확히 대응하게 한다 — to까지 따로 shift하면 말일 클램프 때문에 길이가 달라질 수 있다
+// (예: 8/31 선택 시 전월 2월엔 31일이 없어 2/28로 클램프되어 배열 길이가 어긋남).
+function buildPeriodCompareSeries(from, days) {
+  const series = { net: [], revenue: [], orders: [], sess: [], sessApp: [], join: [], first: [], cancelRate: [] };
+  let d = parseLocalDate(from);
+  for (let i = 0; i < days; i++) {
+    const ds = localDateToStr(d);
+    let dGmv = 0, dNet = 0, dOrders = 0;
+    (RAW[ds] || []).forEach(h => { if (h) { if (h[0]) dOrders += h[0]; if (h[1]) dGmv += h[1]; if (h[2]) dNet += h[2]; } });
+    const dd = DAILY[ds] || {};
+    let dSess = 0, dSessApp = 0;
+    const td = (TRAFFIC[ds] || {}).__total__;
+    if (td && td.s) {
+      dSess = td.s;
+      const app = td.device && td.device.app;
+      if (app && app.s) dSessApp = app.s;
+    }
+    series.net.push(dNet > 0 ? +(dNet / 1e8).toFixed(1) : 0);
+    series.revenue.push(dGmv > 0 ? +(dGmv / 1e8).toFixed(1) : 0);
+    series.orders.push(dOrders || 0);
+    series.sess.push(dSess || null);
+    series.sessApp.push(dSessApp || null);
+    series.join.push(dd.join || 0);
+    series.first.push(dd.first || 0);
+    series.cancelRate.push(dGmv > 0 ? +((1 - dNet / dGmv) * 100).toFixed(1) : null);
+    d.setDate(d.getDate() + 1);
+  }
+  return series;
+}
+
 function renderPeriodView() {
   if (!Object.keys(RAW).length) return;   // 데이터 로드 전 빈 렌더 방지(Weekly와 동일 가드)
   const from = document.getElementById('period-from')?.value;
@@ -3987,6 +4020,10 @@ function renderPeriodView() {
     crS.j2f.push(dd.join ? +((dd.first || 0) / dd.join * 100).toFixed(1) : null);
     d.setDate(d.getDate() + 1);
   }
+
+  // 일별 추이 차트용 MoM/YoY 비교선 — 선택기간과 같은 일수(totalDays)만큼 밀어서 계산
+  const seriesMom = buildPeriodCompareSeries(pdShiftMonth(from, -1), totalDays);
+  const seriesYoy = buildPeriodCompareSeries(pdLastYear(from), totalDays);
 
   if (note) {
     // 소스별 보유 시작일이 달라 같은 기간이라도 지표마다 실제 커버 구간이 다르다.
@@ -4045,7 +4082,11 @@ function renderPeriodView() {
     (shC != null && shL != null) ? shC - shL : null, true,
     series.sessApp.map((v, i) => v && series.sess[i] ? +(v / series.sess[i] * 100).toFixed(1) : null), '#3b82f6');
 
-  periodTrendSeries = { labels, series, cr: crS, from, to };
+  periodTrendSeries = {
+    labels, series, cr: crS, from, to,
+    seriesMom, seriesYoy,
+    momFrom: pdShiftMonth(from, -1), yoyFrom: pdLastYear(from),
+  };
   renderPeriodTrendChart();
   renderPeriodCrTrend();
   renderPeriodFunnel();
@@ -4098,7 +4139,9 @@ function renderPeriodTrendChart() {
   const key = document.getElementById('pd-trend-metric')?.value || 'net';
   const m = PD_TREND_METRICS[key];
   const sub = document.getElementById('pd-trend-sub');
+  const { momFrom, yoyFrom, labels } = periodTrendSeries;
   if (sub) sub.textContent = `${m.label} 일별 추이${m.kind === 'money' ? ' (억원)' : m.kind === 'percent' ? ' (%)' : ''}`
+    + ` · 점선=전월동기간(${momFrom}~)·전년동기간(${yoyFrom}~)`
     + (key === 'sess' || key === 'sessApp' ? ' · 트래픽 시트 보유 기간만 표시' : '');
 
   const canvas = document.getElementById('chart-period-trend');
@@ -4106,16 +4149,31 @@ function renderPeriodTrendChart() {
   periodTrendChart = new Chart(canvas, {
     type: 'line',
     data: {
-      labels: periodTrendSeries.labels,
-      datasets: [{
-        label: m.label, data: periodTrendSeries.series[key],
-        borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.15)',
-        borderWidth: 2, pointRadius: 2, tension: 0.3, fill: true, spanGaps: false, datalabels: { display: false },
-      }],
+      labels,
+      datasets: [
+        {
+          label: `${m.label} (선택기간)`, data: periodTrendSeries.series[key],
+          borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.15)',
+          borderWidth: 2, pointRadius: 2, tension: 0.3, fill: true, spanGaps: false, datalabels: { display: false },
+        },
+        {
+          label: '전월동기간', data: periodTrendSeries.seriesMom[key],
+          borderColor: '#f59e0b', backgroundColor: 'transparent', borderDash: [4, 3],
+          borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false, spanGaps: false, datalabels: { display: false },
+        },
+        {
+          label: '전년동기간', data: periodTrendSeries.seriesYoy[key],
+          borderColor: '#8b5cf6', backgroundColor: 'transparent', borderDash: [2, 2],
+          borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false, spanGaps: false, datalabels: { display: false },
+        },
+      ],
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+      plugins: {
+        legend: { display: true, position: 'top', align: 'end', labels: { boxWidth: 14, font: { size: 10 }, color: '#64748b' } },
+        tooltip: { mode: 'index', intersect: false },
+      },
       scales: {
         x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 9 } } },
         y: { min: 0, grid: { color: '#f1f5f9' }, ticks: { color: '#94a3b8', font: { size: 10 }, callback: v => v.toLocaleString() } },
