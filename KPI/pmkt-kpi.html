@@ -4530,13 +4530,20 @@ function renderPeriodCategoryTreemap() {
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      onClick(evt, elements) {
+      // rows[elements[0].index]로 찾으면 안 된다 — 트리맵 컨트롤러가 스퀘어파이 레이아웃을 위해
+      // 내부적으로 크기순 재정렬을 하기 때문에 클릭 인덱스가 원본 rows 순서와 어긋난다(실측:
+      // "여성·의류" 클릭했는데 "남성"이 열리는 버그로 발견). chart.data.datasets[...].data[index]._data로
+      // 차트 자체가 들고 있는 원본 참조를 읽어야 항상 정확하다(라벨/툴팁 콜백과 동일한 패턴).
+      onClick(evt, elements, chart) {
         if (!elements.length) return;
-        const d = rows[elements[0].index];
+        const el = elements[0];
+        const d = chart.data.datasets[el.datasetIndex].data[el.index]?._data;
         if (d && d.next) { catDrillPath.push(d.next); renderPeriodCategoryTreemap(); }
       },
-      onHover(evt, elements) {
-        evt.native.target.style.cursor = (elements.length && rows[elements[0].index]?.next) ? 'pointer' : 'default';
+      onHover(evt, elements, chart) {
+        const el = elements[0];
+        const d = el ? chart.data.datasets[el.datasetIndex].data[el.index]?._data : null;
+        evt.native.target.style.cursor = (d && d.next) ? 'pointer' : 'default';
       },
       plugins: {
         legend: { display: false },
