@@ -4472,33 +4472,35 @@ function catTilesWithGrowth(tree, prevTree, path, metric) {
 // 나머지 형제 타일은 원래 자리에 그대로 남는다(coco 요청: 화면 전체가 안 바뀌었으면 함).
 // catDrillPath 길이(0/1/2)에 따라 group1/group2로 중첩 깊이를 표현 — 데이터가 대/중/소
 // 3단뿐이라 최대 2단 중첩이면 충분(소는 항상 리프라 더 펼칠 게 없음).
+// expandedLabels[i] = catDrillPath[0..i] 단계까지 펼쳐진 그룹의 라벨(group1/group2로 쓰이는
+// 값과 동일) — 그룹 헤더(캡션) 영역을 다시 클릭했을 때 어느 깊이를 접어야 하는지 매칭용.
 function buildInPlaceCategoryRows(tree, prevTree, path, metric) {
   const flatten = (t) => ({ ...t, group1: t.label, group2: t.label });
   if (!path.length) {
-    return catTilesWithGrowth(tree, prevTree, [], metric).map(flatten);
+    return { rows: catTilesWithGrowth(tree, prevTree, [], metric).map(flatten), expandedLabels: [] };
   }
 
   const level0 = catTilesWithGrowth(tree, prevTree, [], metric);
   const expanded0 = level0.find(t => t.next && catSameSeg(t.next, path[0]));
-  if (!expanded0) return level0.map(flatten);  // 방어: 매칭 실패 시 루트로 폴백
+  if (!expanded0) return { rows: level0.map(flatten), expandedLabels: [] };  // 방어: 매칭 실패 시 루트로 폴백
 
   const rows = level0.filter(t => t !== expanded0).map(flatten);
   const level1 = catTilesWithGrowth(tree, prevTree, [path[0]], metric);
 
   if (path.length === 1) {
     level1.forEach(t => rows.push({ ...t, group1: expanded0.label, group2: t.label }));
-    return rows;
+    return { rows, expandedLabels: [expanded0.label] };
   }
 
   const expanded1 = level1.find(t => t.next && catSameSeg(t.next, path[1]));
   if (!expanded1) {
     level1.forEach(t => rows.push({ ...t, group1: expanded0.label, group2: t.label }));
-    return rows;
+    return { rows, expandedLabels: [expanded0.label] };
   }
   level1.filter(t => t !== expanded1).forEach(t => rows.push({ ...t, group1: expanded0.label, group2: t.label }));
   const level2 = catTilesWithGrowth(tree, prevTree, path, metric);
   level2.forEach(t => rows.push({ ...t, group1: expanded0.label, group2: expanded1.label }));
-  return rows;
+  return { rows, expandedLabels: [expanded0.label, expanded1.label] };
 }
 
 function renderCatBreadcrumb() {
@@ -4539,7 +4541,8 @@ function renderPeriodCategoryTreemap() {
 
   // "그 자리에서 펼치기" — 드릴한 타일만 그 박스 안에서 하위 항목으로 쪼개지고 나머지
   // 형제 타일은 그대로 남는다. catDrillPath 길이만큼 group1/group2로 중첩(최대 2단).
-  const rows = buildInPlaceCategoryRows(curTree, prevTree, catDrillPath, CAT_METRIC).filter(t => t.value > 0);
+  const { rows: rowsRaw, expandedLabels } = buildInPlaceCategoryRows(curTree, prevTree, catDrillPath, CAT_METRIC);
+  const rows = rowsRaw.filter(t => t.value > 0);
   // groups 배열의 마지막 키는 "그 그룹 안에서 리프를 구분하는 고유값"이어야 한다 —
   // ['group1']처럼 그룹 키 하나만 주면 같은 group1을 가진 여러 행이 리프로 안 남고
   // 그룹 전체 값으로 합쳐져 버린다(실측: 소분류 11개짜리 그룹이 통짜 1칸으로 뭉개짐).
@@ -4599,8 +4602,20 @@ function renderPeriodCategoryTreemap() {
       onClick(evt, elements, chart) {
         if (!elements.length) return;
         const el = elements[0];
-        const meta = chart.getDatasetMeta(el.datasetIndex);
-        const d = lookup(meta.data[el.index].$context);
+        const ctx = chart.getDatasetMeta(el.datasetIndex).data[el.index].$context;
+        // 그룹 헤더(펼쳐진 박스의 캡션/배경, isLeaf:false) 클릭 = 접기 토글. "전체" 브레드
+        // 크럼까지 안 가고 펼친 걸 바로 다시 클릭해서 접을 수 있었으면 하는 요청 —
+        // expandedLabels[i]가 그 그룹의 라벨과 같으면 그 깊이까지 경로를 잘라낸다.
+        // (참고: 이 플러그인은 리프/그룹 헤더 모두 ctx.type==='data'라 type으로는 구분 불가 —
+        // 실측으로 raw.isLeaf가 진짜 구분자임을 확인했다.)
+        // isLeaf:false인 요소 중에서도 진짜로 "지금 펼쳐져 있는" 그룹(expandedLabels에 있는
+        // 것)일 때만 접기로 처리한다 — 안 펼쳐진 형제 타일(1개짜리 그룹이라 헤더/리프가 겹침)은
+        // 아래 lookup()으로 흘려보내 원래대로 드릴다운되게 둔다.
+        if (ctx.raw?.isLeaf === false) {
+          const depth = expandedLabels.indexOf(ctx.raw.g);
+          if (depth >= 0) { catDrillPath = catDrillPath.slice(0, depth); renderPeriodCategoryTreemap(); return; }
+        }
+        const d = lookup(ctx);
         if (!d || !d.next) return;
         // group1 !== group2면 "지금 펼쳐진 그룹의 자식"(예: 남성을 펼친 뒤 그 중분류 하나를
         // 클릭)이라 경로를 이어붙인다. group1 === group2(형제 타일, 안 펼쳐진 상태)면 별개
@@ -4611,8 +4626,11 @@ function renderPeriodCategoryTreemap() {
       },
       onHover(evt, elements, chart) {
         const el = elements[0];
-        const d = el ? lookup(chart.getDatasetMeta(el.datasetIndex).data[el.index].$context) : null;
-        evt.native.target.style.cursor = (d && d.next) ? 'pointer' : 'default';
+        if (!el) { evt.native.target.style.cursor = 'default'; return; }
+        const ctx = chart.getDatasetMeta(el.datasetIndex).data[el.index].$context;
+        const collapsible = ctx.raw?.isLeaf === false && expandedLabels.includes(ctx.raw.g);
+        const clickable = collapsible || !!lookup(ctx)?.next;
+        evt.native.target.style.cursor = clickable ? 'pointer' : 'default';
       },
       plugins: {
         legend: { display: false },
