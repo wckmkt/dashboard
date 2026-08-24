@@ -6,6 +6,7 @@
 <title>마케팅 KPI 실적 현황 | W CONCEPT</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@4.2.0/dist/chartjs-chart-treemap.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif;background:#EEF2F7;color:#1e293b;font-size:13px}
@@ -63,7 +64,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
 .card-title{font-size:13px;font-weight:700;color:#0f172a;margin-bottom:2px}
 .card-sub{font-size:11px;color:#94a3b8;margin-bottom:14px}
 .chart-box{position:relative}
-.chart-box.h180{height:180px}.chart-box.h200{height:200px}.chart-box.h220{height:220px}.chart-box.h240{height:240px}.chart-box.h260{height:260px}
+.chart-box.h180{height:180px}.chart-box.h200{height:200px}.chart-box.h220{height:220px}.chart-box.h240{height:240px}.chart-box.h260{height:260px}.chart-box.h320{height:320px}
 /* 전환 퍼널 (게이지형) */
 .fi{margin-bottom:18px}
 .fi:last-child{margin-bottom:0}
@@ -1838,6 +1839,26 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
       <tbody id="pd-ch-matrix"><tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:12px">데이터 로딩 중...</td></tr></tbody>
     </table>
     <div style="font-size:10px;color:#94a3b8;margin-top:6px">※ 주문건수·세션→주문 CR은 트래픽 시트 Purchase Cnt 기준 — 전환율 추이 카드(RAW 주문건수 기준)와 약 2% 차이가 납니다</div>
+  </div>
+
+  <!-- 브랜드×카테고리 매출 트리맵 (기간 합산) -->
+  <div class="sec-hd">
+    <h2>브랜드 × 카테고리 매출 트리맵</h2>
+    <span class="sec-note">타일 크기=매출규모 · 타일 색=직전 동일기간 대비 증감률</span>
+  </div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-sub" id="pd-tm-note">데이터 로딩 중...</div>
+    <div class="chart-box h320"><canvas id="chart-pd-brand-treemap"></canvas></div>
+    <div style="margin-top:12px">
+      <div style="height:8px;border-radius:4px;background:linear-gradient(90deg,#dc2626,#e2e8f0,#16a34a)"></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:3px">
+        <span>-30% 이하</span><span>0%</span><span>+30% 이상</span>
+      </div>
+      <div style="margin-top:4px;font-size:10px;color:#94a3b8;display:flex;align-items:center;gap:4px">
+        <i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#94a3b8"></i>
+        신규 브랜드·카테고리 조합 또는 직전 기간 매출 0원(증감률 계산 불가)
+      </div>
+    </div>
   </div>
 
   <!-- 광고 채널ID별 실적 (기간 합산) -->
@@ -4028,6 +4049,7 @@ function renderPeriodView() {
   renderPeriodTrendChart();
   renderPeriodCrTrend();
   renderPeriodFunnel();
+  renderPeriodBrandTreemap();
 
   renderPeriodChannelDonuts();
   renderPeriodChannelShare();
@@ -4097,6 +4119,139 @@ function renderPeriodTrendChart() {
       scales: {
         x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 9 } } },
         y: { min: 0, grid: { color: '#f1f5f9' }, ticks: { color: '#94a3b8', font: { size: 10 }, callback: v => v.toLocaleString() } },
+      },
+    },
+  });
+}
+
+// ── 브랜드×카테고리 매출 트리맵 ──────────────────────────────────────
+// 성장률(%) → 빨강↔초록 다이버징 색상. null(직전 동기간 데이터 없음)은 중립 회색.
+// ±TM_SCALE_MAX%로 클램프 — 신규 브랜드의 무한대 성장률 같은 극단값에 스케일 전체가
+// 끌려가 나머지 타일이 전부 흐릿해지는 걸 막는다(Finviz류 히트맵과 동일한 관례).
+const TM_SCALE_MAX = 30;
+function tmLerpColor(c1, c2, t) {
+  const a = parseInt(c1.slice(1), 16), b = parseInt(c2.slice(1), 16);
+  const ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
+  const br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
+  const r = Math.round(ar + (br - ar) * t), g = Math.round(ag + (bg - ag) * t), bl = Math.round(ab + (bb - ab) * t);
+  return `rgb(${r},${g},${bl})`;
+}
+function tmGrowthColor(pct) {
+  if (pct === null || pct === undefined || !isFinite(pct)) return '#94a3b8';
+  const t = Math.max(-1, Math.min(1, pct / TM_SCALE_MAX));
+  return t >= 0 ? tmLerpColor('#e2e8f0', '#16a34a', t) : tmLerpColor('#e2e8f0', '#dc2626', -t);
+}
+
+// BRAND_CAT[date][brand][category] 원 단위 매출을 기간 합산 — {brand: {category: revenue}}
+function aggBrandCatRevenue(from, to) {
+  const out = {};
+  let d = parseLocalDate(from);
+  const end = parseLocalDate(to);
+  while (d <= end) {
+    const day = BRAND_CAT[localDateToStr(d)];
+    if (day) {
+      for (const brand in day) {
+        const cats = day[brand];
+        const ob = out[brand] || (out[brand] = {});
+        for (const cat in cats) ob[cat] = (ob[cat] || 0) + (cats[cat] || 0);
+      }
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return out;
+}
+
+let periodBrandTreemapChart = null;
+function renderPeriodBrandTreemap() {
+  const canvas = document.getElementById('chart-pd-brand-treemap');
+  const note = document.getElementById('pd-tm-note');
+  if (!canvas) return;
+  const from = document.getElementById('period-from')?.value;
+  const to   = document.getElementById('period-to')?.value;
+  if (!from || !to || from > to || !Object.keys(BRAND_CAT).length) {
+    if (periodBrandTreemapChart) { periodBrandTreemapChart.destroy(); periodBrandTreemapChart = null; }
+    if (note) note.textContent = 'BRAND_CAT 데이터 없음 (6_raw_브랜드카테고리 시트 확인 필요)';
+    return;
+  }
+
+  // 직전 동일 길이 기간: from~to가 N일이면 바로 직전 N일
+  const days = Math.round((parseLocalDate(to) - parseLocalDate(from)) / 864e5) + 1;
+  const prevTo   = getDateByOffset(from, -1);
+  const prevFrom = getDateByOffset(prevTo, -(days - 1));
+
+  const cur  = aggBrandCatRevenue(from, to);
+  const prev = aggBrandCatRevenue(prevFrom, prevTo);
+
+  const rows = [];
+  for (const brand in cur) {
+    for (const cat in cur[brand]) {
+      const revenue = cur[brand][cat];
+      if (!revenue) continue;
+      const prevRevenue = (prev[brand] && prev[brand][cat]) || 0;
+      const growth = prevRevenue > 0 ? +((revenue - prevRevenue) / prevRevenue * 100).toFixed(1) : null;
+      rows.push({ category: cat, brand, revenue, growth });
+    }
+  }
+
+  if (periodBrandTreemapChart) { periodBrandTreemapChart.destroy(); periodBrandTreemapChart = null; }
+  if (!rows.length) {
+    if (note) note.textContent = '선택 기간에 매출 데이터가 없습니다.';
+    return;
+  }
+  if (note) note.innerHTML = `<b>${from} ~ ${to}</b> 매출 규모 · 직전 동일기간(<b>${prevFrom} ~ ${prevTo}</b>) 대비 증감률`;
+
+  periodBrandTreemapChart = new Chart(canvas, {
+    type: 'treemap',
+    data: {
+      datasets: [{
+        tree: rows,
+        key: 'revenue',
+        groups: ['category', 'brand'],
+        spacing: 1,
+        borderWidth: 1,
+        borderColor: '#fff',
+        backgroundColor(ctx) {
+          if (ctx.type !== 'data') return 'transparent';
+          const d = ctx.raw._data;
+          return d ? tmGrowthColor(d.growth) : '#94a3b8';
+        },
+        labels: {
+          display: true, color: '#fff', overflow: 'fit',
+          font: (ctx) => ({ size: ctx.type === 'data' ? 11 : 12, weight: ctx.type === 'data' ? '600' : '700' }),
+          formatter(ctx) {
+            if (ctx.type !== 'data') return ctx.raw.g || '';
+            const d = ctx.raw._data;
+            if (!d) return '';
+            const g = d.growth === null ? 'N/A' : (d.growth >= 0 ? '+' : '') + d.growth + '%';
+            return [d.brand, g];
+          },
+        },
+        captions: {
+          display: true, color: '#0f172a', font: { size: 11, weight: '700' },
+          formatter: (ctx) => ctx.raw.g || '',
+        },
+        datalabels: { display: false },  // 전역 datalabels 플러그인이 트리맵 타일에 간섭하지 않도록 (house style)
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        datalabels: { display: false },
+        tooltip: {
+          callbacks: {
+            title: (items) => {
+              const d = items[0]?.raw?._data;
+              return d ? `${d.category} · ${d.brand}` : '';
+            },
+            label: (item) => {
+              const d = item.raw._data;
+              if (!d) return '';
+              const g = d.growth === null ? '직전 기간 데이터 없음' : `직전 동기간 대비 ${d.growth >= 0 ? '+' : ''}${d.growth}%`;
+              return [`매출 ${Math.round(d.revenue).toLocaleString()}원`, g];
+            },
+          },
+        },
       },
     },
   });
@@ -6478,6 +6633,7 @@ async function jwPhraseAnswer(question, computed) {
 let RAW = {};
 let DAILY = {}, DAILY_AD = {}, TRAFFIC = {}, CONV_CH = {}, DAILY_TGTS = {}, MONTHLY_TGTS = {}, REAL_MONTHLY = {};
 let CH_AD = {}, CH_AD_META = {};
+let BRAND_CAT = {};
 
 // State
 let selectedDate = '';
@@ -7973,6 +8129,7 @@ document.addEventListener('DOMContentLoaded', () => {
       REAL_MONTHLY = data.REAL_MONTHLY || {};
       CH_AD        = data.CH_AD        || {};
       CH_AD_META   = data.CH_AD_META   || {};
+      BRAND_CAT    = data.BRAND_CAT    || {};
       // 월별 타겟(총수주/순수주/GMV 등)은 99_Target 월별 시트(MONTHLY_TGTS)를 항상 최신값으로 사용
       ANNUAL.forEach((d, i) => {
         const mt = MONTHLY_TGTS[`${CUR_YEAR}-${String(i + 1).padStart(2, '0')}`];
