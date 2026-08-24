@@ -43,7 +43,9 @@ API 키를 절대 에코·저장·재사용하지 않는다. 사용자 스크린
 
 ## 핵심 파일 지도
 - `KPI/pmkt-kpi.html` — 대시보드 전체. 탭 시스템(`ALL_VIEWS`/`showView`), 지원이 팝업(FAB + `jw*` 함수들), Chart.js 렌더러.
-- `KPI/pmkt_kpi_data.json` — `generated` + `RAW`(일→시간×[orders,revenue,net,dau,appdau,adcost]) + `DAILY` `DAILY_AD` `TRAFFIC` `CONV_CH` `DAILY_TGTS` `MONTHLY_TGTS` `REAL_MONTHLY` `CH_AD`(chid→[join,first,rev,sess]) `CH_AD_META` `BRAND_SALES`(날짜→브랜드→{g:총수주[, n:순수주]}(원), `6_raw_브랜드카테고리` 시트 원본 — 이름과 달리 카테고리 열은 없음, 브랜드 단위로만 운영. `n`은 시트에 순수주 컬럼이 있을 때만 존재 — JSON 용량 때문에 없을 땐 키 자체를 생략).
+- `KPI/pmkt_kpi_data.json` — `generated` + `RAW`(일→시간×[orders,revenue,net,dau,appdau,adcost]) + `DAILY` `DAILY_AD` `TRAFFIC` `CONV_CH` `DAILY_TGTS` `MONTHLY_TGTS` `REAL_MONTHLY` `CH_AD`(chid→[join,first,rev,sess]) `CH_AD_META`
+  `BRAND_SALES`(날짜→브랜드→{g:총수주, n:순수주}(원) — 시트에 없는 쪽 값은 키 자체 생략) — `6_raw_브랜드` 시트 원본, 총수주/순수주가 **같은 시트에 좌우로 나란히 별개 테이블**(조인 아님, 헤더행에서 빈 컬럼으로 블록 구분 — `_find_header_blocks()`). 브랜드코드가 있으면 코드로 병합, 없으면 이름으로.
+  `CATEGORY_SALES`(날짜→대카테고리→중카테고리→소카테고리→{g,n}(원)) — `7_raw_카테고리` 시트 원본(현재 순수주 블록만 존재, 총수주 블록이 나중에 같은 방식으로 추가돼도 자동 인식). 대시보드에서 "여성"만 중분류로 기본 펼쳐 보여주는 트리맵 드릴다운 UI가 이 구조를 그대로 씀(`renderPeriodCategoryTreemap`, `pmkt-kpi.html`).
 - `C:\bang\gen_realtime_dashboard.py` — `read_*_sheet()` + `main()`. Excel COM으로 마스터 읽어 JSON 생성·push.
 - `C:\bang\teams_notify.ps1` — Teams 알림(웹훅 URL, `#daily`/`#realtime` 앵커 분기).
 - `C:\bang\pmkt_hourly_sync.ps1` — 시간별 동기화 오케스트레이션(BIZW/GA4 → Excel → JSON → push → Teams).
