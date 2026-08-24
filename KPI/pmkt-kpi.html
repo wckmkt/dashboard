@@ -4449,6 +4449,58 @@ function buildCategoryTiles(tree, path, metric) {
   return Object.keys(node).map(s => ({ label: s, value: node[s][metric] || 0, next: null }));
 }
 
+function catSameSeg(a, b) {
+  if (!a || !b || a.type !== b.type) return false;
+  return a.type === 'l' ? a.l === b.l : (a.l === b.l && a.m === b.m);
+}
+
+// buildCategoryTiles 결과에 비교기간 대비 증감률을 붙인다 — cur/prev 트리에 같은 path를
+// 적용해서 라벨로 매칭(기존 renderPeriodCategoryTreemap에 있던 로직을 재사용 가능하게 추출).
+function catTilesWithGrowth(tree, prevTree, path, metric) {
+  const cur = buildCategoryTiles(tree, path, metric);
+  const prev = buildCategoryTiles(prevTree, path, metric);
+  const prevMap = {};
+  prev.forEach(t => { prevMap[t.label] = t.value; });
+  return cur.map(t => {
+    const pv = prevMap[t.label] || 0;
+    const growth = pv > 0 ? +((t.value - pv) / pv * 100).toFixed(1) : null;
+    return { ...t, growth };
+  });
+}
+
+// "그 자리에서 펼치기" — 드릴한 타일만 그 박스 크기 안에서 하위 항목으로 쪼개지고,
+// 나머지 형제 타일은 원래 자리에 그대로 남는다(coco 요청: 화면 전체가 안 바뀌었으면 함).
+// catDrillPath 길이(0/1/2)에 따라 group1/group2로 중첩 깊이를 표현 — 데이터가 대/중/소
+// 3단뿐이라 최대 2단 중첩이면 충분(소는 항상 리프라 더 펼칠 게 없음).
+function buildInPlaceCategoryRows(tree, prevTree, path, metric) {
+  const flatten = (t) => ({ ...t, group1: t.label, group2: t.label });
+  if (!path.length) {
+    return catTilesWithGrowth(tree, prevTree, [], metric).map(flatten);
+  }
+
+  const level0 = catTilesWithGrowth(tree, prevTree, [], metric);
+  const expanded0 = level0.find(t => t.next && catSameSeg(t.next, path[0]));
+  if (!expanded0) return level0.map(flatten);  // 방어: 매칭 실패 시 루트로 폴백
+
+  const rows = level0.filter(t => t !== expanded0).map(flatten);
+  const level1 = catTilesWithGrowth(tree, prevTree, [path[0]], metric);
+
+  if (path.length === 1) {
+    level1.forEach(t => rows.push({ ...t, group1: expanded0.label, group2: t.label }));
+    return rows;
+  }
+
+  const expanded1 = level1.find(t => t.next && catSameSeg(t.next, path[1]));
+  if (!expanded1) {
+    level1.forEach(t => rows.push({ ...t, group1: expanded0.label, group2: t.label }));
+    return rows;
+  }
+  level1.filter(t => t !== expanded1).forEach(t => rows.push({ ...t, group1: expanded0.label, group2: t.label }));
+  const level2 = catTilesWithGrowth(tree, prevTree, path, metric);
+  level2.forEach(t => rows.push({ ...t, group1: expanded0.label, group2: expanded1.label }));
+  return rows;
+}
+
 function renderCatBreadcrumb() {
   const el = document.getElementById('pd-catm-breadcrumb');
   if (!el) return;
@@ -4484,16 +4536,23 @@ function renderPeriodCategoryTreemap() {
   const { prevFrom, prevTo, basis } = pdCompareBasis(from, to);
   const curTree  = aggCategoryTree(from, to);
   const prevTree = aggCategoryTree(prevFrom, prevTo);
-  const curTiles  = buildCategoryTiles(curTree, catDrillPath, CAT_METRIC);
-  const prevTiles = buildCategoryTiles(prevTree, catDrillPath, CAT_METRIC);
-  const prevMap = {};
-  prevTiles.forEach(t => { prevMap[t.label] = t.value; });
 
-  const rows = curTiles.filter(t => t.value > 0).map(t => {
-    const pv = prevMap[t.label] || 0;
-    const growth = pv > 0 ? +((t.value - pv) / pv * 100).toFixed(1) : null;
-    return { label: t.label, revenue: t.value, growth, next: t.next };
-  });
+  // "그 자리에서 펼치기" — 드릴한 타일만 그 박스 안에서 하위 항목으로 쪼개지고 나머지
+  // 형제 타일은 그대로 남는다. catDrillPath 길이만큼 group1/group2로 중첩(최대 2단).
+  const rows = buildInPlaceCategoryRows(curTree, prevTree, catDrillPath, CAT_METRIC).filter(t => t.value > 0);
+  // groups 배열의 마지막 키는 "그 그룹 안에서 리프를 구분하는 고유값"이어야 한다 —
+  // ['group1']처럼 그룹 키 하나만 주면 같은 group1을 가진 여러 행이 리프로 안 남고
+  // 그룹 전체 값으로 합쳐져 버린다(실측: 소분류 11개짜리 그룹이 통짜 1칸으로 뭉개짐).
+  // label은 지금 구조상 한 화면 안에서 항상 고유해서 리프 구분 키로 안전하게 쓸 수 있다.
+  const groupsCfg = catDrillPath.length === 0 ? undefined
+    : catDrillPath.length === 1 ? ['group1', 'label'] : ['group1', 'group2', 'label'];
+  // groups를 쓰면 플러그인이 내부적으로 각 노드를 자기 노드 구조(children/value/label/group/...)로
+  // 재구성하면서 내가 넣은 커스텀 필드(growth, next)를 통째로 버린다(실측 확인) — ctx.raw._data가
+  // 더 이상 내 원본 row가 아니게 됨. label만은 항상 보존되길래, label을 키로 하는 별도 조회
+  // 테이블로 우회한다. label이 그룹 헤더든 리프든 항상 원본 row와 동일하게 남는 것도 확인됨.
+  const rowByLabel = {};
+  rows.forEach(r => { rowByLabel[r.label] = r; });
+  const lookup = (ctx) => { const raw = ctx.raw?._data; return raw ? rowByLabel[raw.label] : null; };
 
   if (periodCategoryTreemapChart) { periodCategoryTreemapChart.destroy(); periodCategoryTreemapChart = null; }
   if (!rows.length) {
@@ -4507,42 +4566,52 @@ function renderPeriodCategoryTreemap() {
     data: {
       datasets: [{
         tree: rows,
-        key: 'revenue',
+        key: 'value',
+        groups: groupsCfg,
         spacing: 1,
         borderWidth: 1,
         borderColor: '#fff',
         backgroundColor(ctx) {
           if (ctx.type !== 'data') return 'transparent';
-          const d = ctx.raw._data;
+          const d = lookup(ctx);
           return d ? tmGrowthColor(d.growth) : '#94a3b8';
         },
         labels: {
-          display: true, color: '#fff', overflow: 'fit', font: { size: 11, weight: '600' },
+          display: true, color: '#fff', overflow: 'fit',
+          font: (ctx) => ({ size: ctx.type === 'data' ? 11 : 12, weight: ctx.type === 'data' ? '600' : '700' }),
           formatter(ctx) {
-            const d = ctx.raw._data;
+            if (ctx.type !== 'data') return ctx.raw.g || '';
+            const d = lookup(ctx);
             if (!d) return '';
             const g = d.growth === null ? 'N/A' : (d.growth >= 0 ? '+' : '') + d.growth + '%';
             return [d.label, g];
           },
+        },
+        captions: {
+          display: true, color: '#0f172a', font: { size: 11, weight: '700' },
+          formatter: (ctx) => ctx.raw.g || '',
         },
         datalabels: { display: false },
       }],
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      // rows[elements[0].index]로 찾으면 안 된다 — 트리맵 컨트롤러가 스퀘어파이 레이아웃을 위해
-      // 내부적으로 크기순 재정렬을 하기 때문에 클릭 인덱스가 원본 rows 순서와 어긋난다(실측:
-      // "여성·의류" 클릭했는데 "남성"이 열리는 버그로 발견). chart.data.datasets[...].data[index]._data로
-      // 차트 자체가 들고 있는 원본 참조를 읽어야 항상 정확하다(라벨/툴팁 콜백과 동일한 패턴).
       onClick(evt, elements, chart) {
         if (!elements.length) return;
         const el = elements[0];
-        const d = chart.data.datasets[el.datasetIndex].data[el.index]?._data;
-        if (d && d.next) { catDrillPath.push(d.next); renderPeriodCategoryTreemap(); }
+        const meta = chart.getDatasetMeta(el.datasetIndex);
+        const d = lookup(meta.data[el.index].$context);
+        if (!d || !d.next) return;
+        // group1 !== group2면 "지금 펼쳐진 그룹의 자식"(예: 남성을 펼친 뒤 그 중분류 하나를
+        // 클릭)이라 경로를 이어붙인다. group1 === group2(형제 타일, 안 펼쳐진 상태)면 별개
+        // 브랜치를 새로 클릭한 것이므로 경로를 이걸로 교체한다 — 안 그러면 서로 무관한
+        // "의류"와 "남성"이 부모-자식인 것처럼 경로에 같이 쌓이는 버그가 생긴다(실측 발견).
+        catDrillPath = (d.group1 !== d.group2) ? [...catDrillPath, d.next] : [d.next];
+        renderPeriodCategoryTreemap();
       },
       onHover(evt, elements, chart) {
         const el = elements[0];
-        const d = el ? chart.data.datasets[el.datasetIndex].data[el.index]?._data : null;
+        const d = el ? lookup(chart.getDatasetMeta(el.datasetIndex).data[el.index].$context) : null;
         evt.native.target.style.cursor = (d && d.next) ? 'pointer' : 'default';
       },
       plugins: {
@@ -4550,12 +4619,12 @@ function renderPeriodCategoryTreemap() {
         datalabels: { display: false },
         tooltip: {
           callbacks: {
-            title: (items) => items[0]?.raw?._data?.label || '',
+            title: (items) => lookup(items[0])?.label || '',
             label: (item) => {
-              const d = item.raw._data;
+              const d = lookup(item);
               if (!d) return '';
               const g = d.growth === null ? '비교기간 데이터 없음' : `${basis} ${d.growth >= 0 ? '+' : ''}${d.growth}%`;
-              return [`${metricLabel} ${Math.round(d.revenue).toLocaleString()}원${d.next ? ' · 클릭해서 드릴다운' : ''}`, g];
+              return [`${metricLabel} ${Math.round(d.value).toLocaleString()}원${d.next ? ' · 클릭해서 드릴다운' : ''}`, g];
             },
           },
         },
