@@ -1870,16 +1870,10 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
     </div>
   </div>
 
-  <!-- 카테고리 매출 트리맵 (대→중→소 드릴다운, 기간 합산) -->
+  <!-- 카테고리 매출 트리맵 (대→중→소 드릴다운, 기간 합산, 순수주 기준 고정) -->
   <div class="sec-hd">
     <h2>카테고리 매출 트리맵</h2>
-    <span class="sec-note" style="display:flex;align-items:center;gap:10px">
-      <span>여성만 중분류로 펼쳐 시작 · 타일 클릭 시 드릴다운</span>
-      <span style="display:inline-flex;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden">
-        <button type="button" class="ch-scope-btn" data-catmetric="g" onclick="setCatMetric('g',this)">총수주</button>
-        <button type="button" class="ch-scope-btn active" data-catmetric="n" onclick="setCatMetric('n',this)">순수주</button>
-      </span>
-    </span>
+    <span class="sec-note">순수주 기준 · 여성만 중분류로 펼쳐 시작 · 타일 클릭 시 드릴다운</span>
   </div>
   <div class="card" style="margin-bottom:14px">
     <div id="pd-catm-breadcrumb" style="font-size:12px;font-weight:600;color:#0B1D3A;margin-bottom:6px"></div>
@@ -4391,16 +4385,9 @@ function renderPeriodBrandTreemap() {
 // ── 카테고리 매출 트리맵 (대→중→소 드릴다운) ────────────────────────────
 // 기본 화면: 여성은 중분류로 펼치고, 그 외 대분류는 통짜 타일 1개.
 // 아무 타일이나 클릭하면 그 밑 레벨로 드릴다운(대→중→소), 브레드크럼으로 상위 복귀.
-let catMetric = 'n';  // CATEGORY_SALES에 현재 순수주만 있어 기본값을 n으로(총수주 블록 생기면 g도 동일하게 동작)
+const CAT_METRIC = 'n';  // 카테고리는 순수주 기준으로만 본다(coco 확정) — 토글 없이 고정
 let catDrillPath = [];  // [{type:'l', l} | {type:'m', l, m}] — 마지막 항목이 "지금 펼쳐서 보는 대상"
 let periodCategoryTreemapChart = null;
-
-function setCatMetric(metric, el) {
-  catMetric = metric;
-  el.closest('.sec-note').querySelectorAll('.ch-scope-btn').forEach(b => b.classList.remove('active'));
-  el.classList.add('active');
-  renderPeriodCategoryTreemap();
-}
 
 // CATEGORY_SALES[date][대][중][소] = {g,n} 원 단위를 기간 합산 — {대: {중: {소: {g,n}}}}
 function aggCategoryTree(from, to) {
@@ -4486,7 +4473,7 @@ function renderPeriodCategoryTreemap() {
   if (!canvas) return;
   const from = document.getElementById('period-from')?.value;
   const to   = document.getElementById('period-to')?.value;
-  const metricLabel = catMetric === 'n' ? '순수주' : '총수주';
+  const metricLabel = '순수주';
   renderCatBreadcrumb();
   if (!from || !to || from > to || !Object.keys(CATEGORY_SALES).length) {
     if (periodCategoryTreemapChart) { periodCategoryTreemapChart.destroy(); periodCategoryTreemapChart = null; }
@@ -4497,8 +4484,8 @@ function renderPeriodCategoryTreemap() {
   const { prevFrom, prevTo, basis } = pdCompareBasis(from, to);
   const curTree  = aggCategoryTree(from, to);
   const prevTree = aggCategoryTree(prevFrom, prevTo);
-  const curTiles  = buildCategoryTiles(curTree, catDrillPath, catMetric);
-  const prevTiles = buildCategoryTiles(prevTree, catDrillPath, catMetric);
+  const curTiles  = buildCategoryTiles(curTree, catDrillPath, CAT_METRIC);
+  const prevTiles = buildCategoryTiles(prevTree, catDrillPath, CAT_METRIC);
   const prevMap = {};
   prevTiles.forEach(t => { prevMap[t.label] = t.value; });
 
