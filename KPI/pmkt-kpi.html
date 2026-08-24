@@ -4168,10 +4168,21 @@ function renderPeriodBrandTreemap() {
     return;
   }
 
-  // 직전 동일 길이 기간: from~to가 N일이면 바로 직전 N일
+  // 비교기준 자동 판정 — 막연한 "직전 동일 길이 기간"은 MTD처럼 월초부터 잡을 때
+  // 비교구간이 애매해진다(예: 8/1~23 선택 시 직전 23일=7/9~31로 걸쳐 넘어감).
+  //   · 월 1일부터 선택(MTD류) → YoY, 전년 동일 월/일 구간 (pdLastYear 재사용)
+  //   · 정확히 7일 선택(주간 프리셋) → WoW, 직전 7일
+  //   · 그 외 임의 기간 → 직전 동일 길이 기간(기존 로직)
   const days = Math.round((parseLocalDate(to) - parseLocalDate(from)) / 864e5) + 1;
-  const prevTo   = getDateByOffset(from, -1);
-  const prevFrom = getDateByOffset(prevTo, -(days - 1));
+  const isMonthStart = from.slice(8, 10) === '01';
+  let prevFrom, prevTo, tmBasis;
+  if (isMonthStart) {
+    prevFrom = pdLastYear(from); prevTo = pdLastYear(to); tmBasis = 'YoY(전년 동일기간)';
+  } else if (days === 7) {
+    prevTo = getDateByOffset(from, -1); prevFrom = getDateByOffset(prevTo, -6); tmBasis = 'WoW(직전 7일)';
+  } else {
+    prevTo = getDateByOffset(from, -1); prevFrom = getDateByOffset(prevTo, -(days - 1)); tmBasis = '직전 동일기간';
+  }
 
   const cur  = aggBrandRevenue(from, to);
   const prev = aggBrandRevenue(prevFrom, prevTo);
@@ -4199,7 +4210,7 @@ function renderPeriodBrandTreemap() {
   const totalRevenue = allRows.reduce((s, r) => s + r.revenue, 0);
   const shownPct = totalRevenue ? Math.round(shownRevenue / totalRevenue * 100) : 0;
 
-  if (note) note.innerHTML = `<b>${from} ~ ${to}</b> 매출 상위 ${rows.length}개 브랜드(전체 ${allRows.length}개 중 매출 ${shownPct}% 커버) · 직전 동일기간(<b>${prevFrom} ~ ${prevTo}</b>) 대비 증감률`;
+  if (note) note.innerHTML = `<b>${from} ~ ${to}</b> 매출 상위 ${rows.length}개 브랜드(전체 ${allRows.length}개 중 매출 ${shownPct}% 커버) · <b>${tmBasis}</b>(<b>${prevFrom} ~ ${prevTo}</b>) 대비 증감률`;
 
   periodBrandTreemapChart = new Chart(canvas, {
     type: 'treemap',
@@ -4239,7 +4250,7 @@ function renderPeriodBrandTreemap() {
             label: (item) => {
               const d = item.raw._data;
               if (!d) return '';
-              const g = d.growth === null ? '직전 기간 데이터 없음' : `직전 동기간 대비 ${d.growth >= 0 ? '+' : ''}${d.growth}%`;
+              const g = d.growth === null ? '비교기간 데이터 없음' : `${tmBasis} ${d.growth >= 0 ? '+' : ''}${d.growth}%`;
               return [`매출 ${Math.round(d.revenue).toLocaleString()}원`, g];
             },
           },
