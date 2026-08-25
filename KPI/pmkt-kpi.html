@@ -2736,19 +2736,35 @@ let wkCommentText = '';
 let wkShareMetric = 'join';     // 채널별 비중 지표 (sess/join/first)
 let WK_CH_TREND_ON = null;      // 채널별 10주 추이에 표시할 채널 집합 (Set) — WK_CH_ORDER 선언 후 초기화
 
-// 2026-08-07: 원래 이름대로 "일요일까지 다 찬 마감주"만 보여줬는데, 월/목 미팅에서
-// 그 주 진행 중 데이터(월요일 미팅=전주 토요일까지, 목요일 미팅=이번주 화요일까지)가
-// 필요하다는 요청으로 게이트를 없앰 — getEffectiveDailyDate()(=어제, 데이터 있는 날) 기준
-// 주로 항상 이동 가능. 함수명은 호출부가 많아 유지하되 의미는 "최신 이동 가능 주"로 바뀜.
+// "기본으로 보여줄 주"와 "이동할 수 있는 최신 주"는 다르다 — 이 둘을 한 함수로 겸하다가
+// 문제가 생겼던 자리라 2026-08-25에 분리했다.
+//
+// 2026-08-07: 원래 "일요일까지 다 찬 마감주"만 보여줬는데, 월/목 미팅에서 그 주 진행 중
+// 데이터(월요일 미팅=전주 토요일까지, 목요일 미팅=이번주 화요일까지)가 필요하다는 요청으로
+// 게이트를 없앴다. 그런데 게이트를 없애면서 기본 진입 주까지 진행중 주로 바뀌어서,
+// 월요일에 탭을 열면 하루치(월요일 하루)만 담긴 주가 기본으로 잡혀 WoW가 -88%처럼
+// 폭망한 것처럼 보였다(2026-08-25 coco 보고). 지원이 봇도 같은 함수를 쓰는데 주석엔
+// "최근 마감주"라고 적혀 있어 같은 착오를 답변에 그대로 내보내고 있었다.
+//
+// 그래서: latestClosedWeekStart()는 이름값대로 "일요일까지 다 찬 마감주"를 돌려주고(기본
+// 진입·지원이 봇용), 진행중 주는 latestNavigableWeekStart()로 ▶를 눌러야 도달한다.
+// 08-07 요청(진행중 주 조회)과 08-25 요청(기본은 마감주)이 둘 다 살아 있다.
 function latestClosedWeekStart() {
   const eff = parseLocalDate(getEffectiveDailyDate());
-  return getWeekStart(eff);
+  const curStart = getWeekStart(eff);
+  // eff가 그 주 일요일까지 도달했으면 그 주가 마감주, 아니면 직전 주.
+  return eff >= wkOffset(curStart, 6) ? curStart : wkOffset(curStart, -7);
+}
+
+// ▶로 이동 가능한 최신 주 = 데이터가 있는 마지막 날(어제)이 속한 주. 진행중일 수 있다.
+function latestNavigableWeekStart() {
+  return getWeekStart(parseLocalDate(getEffectiveDailyDate()));
 }
 
 function moveWeek(delta) {
   if (!weeklySelStart) return;
   const next = wkOffset(weeklySelStart, delta * 7);
-  if (next > latestClosedWeekStart()) return;
+  if (next > latestNavigableWeekStart()) return;
   weeklySelStart = next;
   renderWeekly();
 }
@@ -2868,7 +2884,7 @@ function renderWeekly() {
   }
   const nextBtn = document.getElementById('wk-nav-next');
   if (nextBtn) {
-    const canNext = wkOffset(wkStart, 7) <= latestClosedWeekStart();
+    const canNext = wkOffset(wkStart, 7) <= latestNavigableWeekStart();
     nextBtn.style.opacity = canNext ? '1' : '0.35';
     nextBtn.style.cursor  = canNext ? 'pointer' : 'default';
   }
