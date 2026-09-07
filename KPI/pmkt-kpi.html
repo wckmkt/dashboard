@@ -1575,6 +1575,24 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
       <button type="button" onclick="renderPeriodView()" style="font-size:11px;border:1px solid #0B1D3A;background:#0B1D3A;color:#fff;border-radius:6px;padding:4px 12px;cursor:pointer">조회</button>
     </span>
   </div>
+
+  <!-- 비교기간(전년 축) — 행사 기간이 해마다 밀릴 때 달력 기준 전년 동기간으로는
+       행사끼리 안 맞물려서, 구간을 직접 지정할 수 있게 한다(2026-09-07 요청).
+       전월/전주 축은 "직전 대비"라는 다른 질문이라 여기서 안 바꾼다. -->
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-2px 0 10px;font-size:11.5px;color:#475569">
+    <span style="color:#94a3b8">비교기간</span>
+    <span style="display:inline-flex;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden">
+      <button type="button" class="ch-scope-btn active" data-pdcmp="auto" onclick="setPdCmpMode('auto',this)">전년 동기간</button>
+      <button type="button" class="ch-scope-btn" data-pdcmp="custom" onclick="setPdCmpMode('custom',this)">직접 지정</button>
+    </span>
+    <span id="pd-cmp-custom" style="display:none;align-items:center;gap:6px">
+      <input type="date" id="pd-cmp-from" onchange="onPdCmpDateChange()" style="font-size:11px;border:1px solid #e2e8f0;border-radius:6px;padding:3px 6px;color:#475569">
+      <span>~</span>
+      <input type="date" id="pd-cmp-to" onchange="onPdCmpDateChange()" style="font-size:11px;border:1px solid #e2e8f0;border-radius:6px;padding:3px 6px;color:#475569">
+    </span>
+    <span id="pd-cmp-note" style="color:#94a3b8"></span>
+  </div>
+
   <div id="pd-range-note" style="font-size:11.5px;color:#475569;margin:-4px 0 10px"></div>
 
   <!-- ══ 블록 ① 핵심지표 — Weekly와 같은 구성(값 + YoY 배지 + 전년동기 sub + 스파크라인) ══ -->
@@ -3782,6 +3800,72 @@ function pdLastYear(ds) {
   return localDateToStr(new Date(y, m, Math.min(d.getDate(), lastDay)));
 }
 
+// ── 비교기간(전년 축) 모드 ────────────────────────────────────────────────
+// 2026-09-07 요청: 전년 행사가 올해보다 2주쯤 늦게 진행돼서, 달력 기준 전년 동기간으로
+// 비교하면 행사 기간끼리 어긋난다. 행사 구간을 직접 지정해 맞물려 볼 수 있게 한다.
+//
+// 바꾸는 건 **전년(YoY) 축 하나뿐**이다. 일별 추이의 전월선·퍼널의 전주/전월 축은
+// "직전 대비"라는 다른 질문이라 자동 그대로 둔다.
+//
+// 이 탭의 전년 축은 원래 7곳에서 제각각 계산되고 있었다(핵심지표·일별추이·퍼널·채널
+// 매트릭스·브랜드/카테고리 트리맵·광고 채널ID). 그중 셋은 문자열로 연도만 빼는 인라인
+// 코드였다. 전부 이 함수 하나를 지나게 모아, 카드마다 다른 기간을 쓰는 일이 없게 한다.
+let pdCmpMode = 'auto';          // 'auto' = 전년 동기간, 'custom' = 직접 지정
+let pdCmpFrom = '', pdCmpTo = '';
+
+function pdCmpRange(from, to) {
+  if (pdCmpMode === 'custom' && pdCmpFrom && pdCmpTo && pdCmpFrom <= pdCmpTo) {
+    // 라벨엔 날짜를 넣지 않는다 — 대부분의 카드가 라벨 뒤에 (from ~ to)를 따로 붙여서,
+    // 날짜를 라벨에도 넣으면 "지정 기간(08-15~09-07)(2025-08-15 ~ 2025-09-07)"처럼 두 번 나온다.
+    return { from: pdCmpFrom, to: pdCmpTo, label: '지정 기간', custom: true };
+  }
+  return { from: pdLastYear(from), to: pdLastYear(to), label: '전년 동기간', custom: false };
+}
+
+function pdDayCount(f, t) {
+  return (f && t && f <= t) ? Math.round((parseLocalDate(t) - parseLocalDate(f)) / 864e5) + 1 : 0;
+}
+
+function setPdCmpMode(mode, btn) {
+  pdCmpMode = mode;
+  document.querySelectorAll('[data-pdcmp]').forEach(b => b.classList.toggle('active', b === btn));
+  const box = document.getElementById('pd-cmp-custom');
+  if (box) box.style.display = mode === 'custom' ? 'inline-flex' : 'none';
+  // 직접 지정으로 처음 넘어갈 때는 전년 동기간을 시드로 깔아준다 — 빈 칸에서 시작하면
+  // 두 날짜를 다 채우기 전까지 비교가 멈춰 화면이 비어 보인다.
+  if (mode === 'custom' && (!pdCmpFrom || !pdCmpTo)) {
+    const f = document.getElementById('period-from')?.value;
+    const t = document.getElementById('period-to')?.value;
+    if (f && t) {
+      pdCmpFrom = pdLastYear(f); pdCmpTo = pdLastYear(t);
+      const cf = document.getElementById('pd-cmp-from'), ct = document.getElementById('pd-cmp-to');
+      if (cf) cf.value = pdCmpFrom;
+      if (ct) ct.value = pdCmpTo;
+    }
+  }
+  renderPeriodView();
+}
+
+function onPdCmpDateChange() {
+  pdCmpFrom = document.getElementById('pd-cmp-from')?.value || '';
+  pdCmpTo   = document.getElementById('pd-cmp-to')?.value || '';
+  renderPeriodView();
+}
+
+// 선택 기간과 비교 기간의 길이가 다르면 집계 카드는 각자 전체 구간을 쓰지만 일별 추이
+// 비교선은 "비교 시작일 + 선택 기간 일수"로 그린다(인덱스 정렬 유지). 길이가 어긋난 걸
+// 모르면 숫자를 오독하므로 헤더에 일수를 같이 띄운다.
+function renderPdCmpNote(from, to) {
+  const el = document.getElementById('pd-cmp-note');
+  if (!el) return;
+  if (pdCmpMode !== 'custom') { el.textContent = ''; return; }
+  const a = pdDayCount(from, to), b = pdDayCount(pdCmpFrom, pdCmpTo);
+  if (!b) { el.innerHTML = '<span style="color:#ef4444">비교 기간을 지정해 주세요</span>'; return; }
+  el.innerHTML = a === b
+    ? `선택 ${a}일 · 비교 ${b}일`
+    : `선택 ${a}일 · 비교 ${b}일 <span style="color:#f59e0b">— 길이가 달라 일별 추이 비교선은 비교 시작일부터 ${a}일만 그립니다</span>`;
+}
+
 // 날짜를 n개월 이동(말일 클램프). pdLastYear와 같은 계열 — 문자열로 월만 빼면
 // 3/31 → 2/31 같은 무효값이 3/3으로 롤오버된다.
 // mtdRangeOffset은 항상 "그 달 1일~"을 돌려주므로 임의 기간에는 쓸 수 없어 따로 둔다.
@@ -3839,8 +3923,14 @@ function renderPeriodView() {
   // 집계는 aggRangeFull에 위임 — 예전엔 여기서 거의 동일한 루프를 따로 돌려
   // orders/ordersApp/missDaily를 버리고 있었다(R2: 검증된 함수 재사용).
   const cur  = aggRangeFull(from, to);
-  const lyF  = pdLastYear(from), lyT = pdLastYear(to);
+  const cmp  = pdCmpRange(from, to);
+  const lyF  = cmp.from, lyT = cmp.to;
   const ly   = aggRangeFull(lyF, lyT);
+  renderPdCmpNote(from, to);
+  // 비교 축이 바뀌면 헤더 문구도 따라가야 한다 — 고정 문구면 화면이 실제 계산과 다른 말을 한다.
+  const kpiNote = document.getElementById('pd-kpi-note');
+  if (kpiNote) kpiNote.textContent =
+    `YoY=${cmp.label}(${lyF} ~ ${lyT}) 대비 · 스파크라인=선택 기간 일별`;
 
   // 일별 시리즈 — 추이/전환율 차트가 공유. 매 호출마다 새로 만들어 캐시 불일치를 없앤다.
   const labels = [];
@@ -3879,7 +3969,7 @@ function renderPeriodView() {
 
   // 일별 추이 차트용 MoM/YoY 비교선 — 선택기간과 같은 일수(totalDays)만큼 밀어서 계산
   const seriesMom = buildPeriodCompareSeries(pdShiftMonth(from, -1), totalDays);
-  const seriesYoy = buildPeriodCompareSeries(pdLastYear(from), totalDays);
+  const seriesYoy = buildPeriodCompareSeries(cmp.from, totalDays);
 
   if (note) {
     // 소스별 보유 시작일이 달라 같은 기간이라도 지표마다 실제 커버 구간이 다르다.
@@ -3902,7 +3992,8 @@ function renderPeriodView() {
   Object.keys(CFG).forEach(k => {
     const c = CFG[k], a = cur[k], l = ly[k];
     const v = document.getElementById(`pd-k-${k}`);       if (v) v.textContent = fmt(a, c);
-    const s = document.getElementById(`pd-k-${k}-sub`);   if (s) s.textContent = `전년 ${fmt(l, c)}`;
+    // 비교 축을 직접 지정했으면 '전년'이라고 쓰면 안 된다(그 기간이 전년 동기간이 아니다).
+    const s = document.getElementById(`pd-k-${k}-sub`);   if (s) s.textContent = `${cmp.custom ? '비교' : '전년'} ${fmt(l, c)}`;
     const y = document.getElementById(`pd-k-${k}-yoy`);
     if (y) {
       const p = yoyPct(a || null, l || null);
@@ -3941,7 +4032,8 @@ function renderPeriodView() {
   periodTrendSeries = {
     labels, series, cr: crS, from, to,
     seriesMom, seriesYoy,
-    momFrom: pdShiftMonth(from, -1), yoyFrom: pdLastYear(from),
+    // yoyFrom은 비교 축을 따라간다(직접 지정이면 지정 시작일). 전월선은 자동 유지.
+    momFrom: pdShiftMonth(from, -1), yoyFrom: cmp.from, cmpCustom: cmp.custom,
   };
   renderPeriodTrendChart();
   renderPeriodCrTrend();
@@ -3998,8 +4090,10 @@ function renderPeriodTrendChart() {
   const m = PD_TREND_METRICS[key];
   const sub = document.getElementById('pd-trend-sub');
   const { momFrom, yoyFrom, labels } = periodTrendSeries;
+  // 비교 축을 직접 지정했으면 이 선은 전년 동기간이 아니다 — 라벨도 같이 바꾼다.
+  const yoyLbl = (periodTrendSeries.cmpCustom ? '지정 기간' : '전년동기간');
   if (sub) sub.textContent = `${m.label} 일별 추이${m.kind === 'money' ? ' (억원)' : m.kind === 'percent' ? ' (%)' : ''}`
-    + ` · 점선=전월동기간(${momFrom}~)·전년동기간(${yoyFrom}~)`
+    + ` · 점선=전월동기간(${momFrom}~)·${yoyLbl}(${yoyFrom}~)`
     + (key === 'sess' || key === 'sessApp' ? ' · 트래픽 시트 보유 기간만 표시' : '');
 
   const canvas = document.getElementById('chart-period-trend');
@@ -4020,7 +4114,7 @@ function renderPeriodTrendChart() {
           borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false, spanGaps: false, datalabels: { display: false },
         },
         {
-          label: '전년동기간', data: periodTrendSeries.seriesYoy[key],
+          label: yoyLbl, data: periodTrendSeries.seriesYoy[key],
           borderColor: '#8b5cf6', backgroundColor: 'transparent', borderDash: [2, 2],
           borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false, spanGaps: false, datalabels: { display: false },
         },
@@ -4141,6 +4235,9 @@ function setTmChannel(v) {
 //   · 정확히 7일 선택(주간 프리셋) → WoW, 직전 7일
 //   · 그 외 임의 기간 → 직전 동일 길이 기간
 function pdCompareBasis(from, to) {
+  // 비교기간을 직접 지정했으면 기준 자동판정보다 우선한다(트리맵도 같은 구간을 보게).
+  const cmp = pdCmpRange(from, to);
+  if (cmp.custom) return { prevFrom: cmp.from, prevTo: cmp.to, basis: cmp.label };
   const days = Math.round((parseLocalDate(to) - parseLocalDate(from)) / 864e5) + 1;
   const isMonthStart = from.slice(8, 10) === '01';
   if (isMonthStart) {
@@ -5356,8 +5453,8 @@ function renderAdEfficiency(curFrom, curTo, cmpFrom, cmpTo, bCur, bCmp) {
 
 // 기간조회 ③ 채널 스코어카드 — Weekly와 동일 매트릭스, WoW 대신 전년 동기간 YoY
 function renderPdChannelMatrix(from, to) {
-  const lyFrom = `${parseInt(from.substring(0, 4)) - 1}${from.substring(4)}`;
-  const lyTo   = `${parseInt(to.substring(0, 4)) - 1}${to.substring(4)}`;
+  const _c = pdCmpRange(from, to);
+  const lyFrom = _c.from, lyTo = _c.to;
   const cur = aggChannelRange(from, to);
   const ly  = aggChannelRange(lyFrom, lyTo);
   const cell = (a, b) => {
@@ -5452,8 +5549,8 @@ function renderPdChAd() {
   const body = document.getElementById('pd-chad-body');
   const subEl = document.getElementById('pd-chad-sub');
   if (!body || !from || !to || from > to) return;
-  const lyFrom = `${parseInt(from.substring(0, 4)) - 1}${from.substring(4)}`;
-  const lyTo   = `${parseInt(to.substring(0, 4)) - 1}${to.substring(4)}`;
+  const _c = pdCmpRange(from, to);
+  const lyFrom = _c.from, lyTo = _c.to;
   const cur = aggChAdRange(from, to);
   const ly  = aggChAdRange(lyFrom, lyTo);
   const meta = CH_AD_META || {};
@@ -8213,7 +8310,7 @@ function renderPeriodFunnel() {
     pfx: 'pd', ch: sel ? sel.value : '__total__', app: pdFunnelDevScope === 'app',
     cur:  { from, to },
     prev: { from: prevFrom, to: prevTo },
-    ly:   { from: pdLastYear(from), to: pdLastYear(to) },
+    ly:   { from: pdCmpRange(from, to).from, to: pdCmpRange(from, to).to },
     prevLbl, lyLbl: '전년', unitLbl: '/일',
   });
   lastPdFunnelResult.from = from;
@@ -8222,11 +8319,12 @@ function renderPeriodFunnel() {
   // 비교 기준이 기간 길이에 따라 바뀌므로 설명 문구도 함께 갱신한다 —
   // 고정 문구로 두면 화면이 실제 계산과 다른 말을 하게 된다.
   const setHtml = (id, h) => { const el = document.getElementById(id); if (el) el.innerHTML = h; };
+  const cmpLbl = pdCmpRange(from, to).label;
   setHtml('pdfn-period-note',
-    `· ${days}일 일평균 · <span style="color:#f59e0b;font-weight:700">┃</span> ${prevLbl} 동기간 ${prevFrom.slice(5)}~${prevTo.slice(5)} <span style="color:#94a3b8;font-weight:700">┊</span> 전년 동기간`);
-  setHtml('pdfx-cmp-sub', `선택 기간 vs ${prevLbl} 동기간 · 전년 동기간`);
+    `· ${days}일 일평균 · <span style="color:#f59e0b;font-weight:700">┃</span> ${prevLbl} 동기간 ${prevFrom.slice(5)}~${prevTo.slice(5)} <span style="color:#94a3b8;font-weight:700">┊</span> ${cmpLbl}`);
+  setHtml('pdfx-cmp-sub', `선택 기간 vs ${prevLbl} 동기간 · ${cmpLbl}`);
   setHtml('pdfx-cmp-leg',
-    `막대 = 선택 기간 · <span style="color:#f59e0b;font-weight:700">┃</span> ${prevLbl} 동기간 · <span style="font-weight:700">┊</span> 전년 동기간 · 증감은 %p`);
+    `막대 = 선택 기간 · <span style="color:#f59e0b;font-weight:700">┃</span> ${prevLbl} 동기간 · <span style="font-weight:700">┊</span> ${cmpLbl} · 증감은 %p`);
   const sub = document.getElementById('pdfn-flow-sub');
   if (sub) sub.textContent = `세션 → 상품조회 → 장바구니 → 구매완료 · ${from} ~ ${to} 일평균`;
 
