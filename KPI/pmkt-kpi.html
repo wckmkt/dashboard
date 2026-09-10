@@ -28,6 +28,10 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
 .hd-link{display:inline-flex;align-items:center;gap:5px;border-radius:20px;padding:4px 12px;font-size:11px;font-weight:600;
   background:rgba(255,255,255,.08);color:#e2e8f0;border:1px solid rgba(255,255,255,.14);text-decoration:none;transition:all .15s}
 .hd-link:hover{background:rgba(255,255,255,.18);color:#fff;border-color:rgba(255,255,255,.3)}
+/* 2026-09-10: 이 줄이 없으면 hidden 속성이 무효다. hidden은 UA 스타일시트의
+   [hidden]{display:none}으로 동작하는데, 바로 위 .hd-link{display:inline-flex}가
+   명시도에서 이겨 덮어쓴다 — 실제로 공유용 배포에 링크가 그대로 노출됐다. */
+.hd-link[hidden]{display:none}
 
 /* ─── Tabs ─── */
 /* 2026-07-27: 좁은 창에서 탭바가 넘칠 때(실측 372px: scrollWidth 496 > clientWidth 366)
