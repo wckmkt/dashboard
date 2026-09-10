@@ -2003,6 +2003,30 @@ const fmtISO = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')
 // ── 마감 코멘트 (RAW 자동 생성) ──────────────────────────────────
 
 // RAW + DAILY_TARGETS + KPI_DAILY에서 직접 계산
+// ── 광고비: 실집행 vs 계획 판정 ────────────────────────────────────────────
+// 0.전사(일별) I~K(광고비/DA/SA)는 미갱신일에도 계획치가 들어 있다. 예전엔 "DA/SA 분해가
+// 붙어 있으면 실적"으로 갈랐는데(실측상 실적일은 DA+SA가 I열과 원 단위까지 일치했다),
+// 2026-09-10부터 계획치에도 DA/SA 상세를 채우기로 하면서 그 신호가 사라졌다.
+// 대신 '광고비_확정' 열(실집행을 친 행에만 Y)을 정본으로 쓴다.
+//
+// 과거 데이터에는 그 열이 없으므로 도입일 기준으로 갈라야 한다 — 안 그러면 1~8월
+// 실적일이 전부 '계획'으로 뒤집힌다. 열이 아직 시트에 없는 동안(ADCOST_FLAG_PRESENT=false)
+// 에도 기존 방식이 그대로 살아 있어 배포 순서에 상관없이 안전하다.
+//
+// ⚠ DAILY는 이 아래(7098행)에서 let으로 선언되고 데이터 로드 후에야 채워진다. 최상위에서
+//   미리 계산해 상수로 잡아두면 TDZ ReferenceError로 스크립트 전체가 죽는다(실제로 겪음).
+//   호출 시점에 매번 훑는다 — DAILY가 600여 일이라 비용이 무시할 수준이고, 데이터가
+//   다시 로드돼도 저절로 맞는다.
+const ADCOST_FLAG_FROM = '2026-09-10';
+function adcostFlagPresent() {
+  return Object.values(DAILY || {}).some(d => d && d.adcost_fixed != null);
+}
+function adcostIsActual(ds, d) {
+  if (!d) return false;
+  if (ds >= ADCOST_FLAG_FROM && adcostFlagPresent()) return !!d.adcost_fixed;
+  return !!(d.adcost_da || d.adcost_sa);
+}
+
 function mcCalcData() {
   if (!RAW) return null;
   const yDate = getEffectiveDailyDate();
@@ -2022,9 +2046,7 @@ function mcCalcData() {
   yRows.forEach(h => { if(h){ if(h[1])yGmv+=h[1]; if(h[2])yNet+=h[2]; } });
   const yAdRow = DAILY[yDate] || {};
   const yAdcost = yAdRow.adcost || 0;
-  // I열은 미갱신일에도 계획치(5,000만 같은 라운드 값)가 들어온다. DA/SA 분해가 붙은 날만
-  // 확정 실적이다 — 실측상 DA+SA 합이 I열과 정확히 일치한다.
-  const yAdcostFixed = !!(yAdRow.adcost_da || yAdRow.adcost_sa);
+  const yAdcostFixed = adcostIsActual(yDate, yAdRow);
 
   // 전일 목표
   const tgt = getTargets(yDate);
@@ -2051,7 +2073,7 @@ function mcCalcData() {
     const dd = DAILY[ds] || {};
     if (dd.adcost) {
       mtdAdcost += dd.adcost;
-      if (!dd.adcost_da && !dd.adcost_sa) mtdAdPlanDays++;   // 계획치가 섞인 일수
+      if (!adcostIsActual(ds, dd)) mtdAdPlanDays++;   // 계획치가 섞인 일수
     }
   }
 
