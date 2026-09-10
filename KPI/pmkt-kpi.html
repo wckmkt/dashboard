@@ -21,9 +21,13 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
 .badge-live{background:rgba(16,185,129,.18);color:#34d399;border:1px solid rgba(16,185,129,.25)}
 .pulse{display:inline-block;width:6px;height:6px;background:#34d399;border-radius:50%;margin-right:5px;animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-/* 2026-09-10: 헤더 우측에 있던 ad.html 링크(.hd-link)를 사용자 지정으로 제거.
-   전용 스타일이라 같이 걷어냈다. 되살릴 땐 ad.html 159행의 역링크(.x-link)와
-   같은 모양으로 맞추면 된다. ad.html → 이 대시보드로 오는 역링크는 그대로 남아 있다. */
+/* ad.html로 나가는 링크. 탭바에 두면 Daily/Weekly 같은 "이 대시보드 안의 뷰"처럼
+   보여서 헤더 우측 배지로 분리한다 — 나가는 링크임이 드러난다(2026-07-27).
+   2026-09-10: 배포처가 둘로 갈렸다. 팀 내부용(wckmkt.github.io)에만 노출하고
+   타부서 공유용(dashboard-bwk.pages.dev)에서는 숨긴다 — 아래 hd-link 호스트 게이트 참고. */
+.hd-link{display:inline-flex;align-items:center;gap:5px;border-radius:20px;padding:4px 12px;font-size:11px;font-weight:600;
+  background:rgba(255,255,255,.08);color:#e2e8f0;border:1px solid rgba(255,255,255,.14);text-decoration:none;transition:all .15s}
+.hd-link:hover{background:rgba(255,255,255,.18);color:#fff;border-color:rgba(255,255,255,.3)}
 
 /* ─── Tabs ─── */
 /* 2026-07-27: 좁은 창에서 탭바가 넘칠 때(실측 372px: scrollWidth 496 > clientWidth 366)
@@ -553,9 +557,28 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
     <span>W CONCEPT · Performance Marketing Team</span>
   </div>
   <div class="hd-r">
+    <!-- 상대경로 필수 — Pages/GitHub Pages 모두 하위 경로에 얹혀 있어 절대경로 /ad.html은 404.
+         기본은 hidden — 아래 스크립트가 팀 내부용 호스트에서만 연다. -->
+    <a class="hd-link" id="hd-ad-link" href="../ad.html" hidden>📈 광고 성과 대시보드 <span style="font-size:10px">↗</span></a>
     <div class="badge badge-live"><span class="pulse"></span>최종 업데이트: <span id="badge-date"></span></div>
   </div>
 </div>
+
+<!-- 2026-09-10: 같은 파일이 두 곳에 배포된다.
+       팀 내부용   https://wckmkt.github.io/dashboard/KPI/pmkt-kpi.html
+       타부서 공유용 https://dashboard-bwk.pages.dev/KPI/pmkt-kpi   (Cloudflare Access)
+     광고 성과 대시보드는 팀 내부 자산이라 전자에서만 링크를 연다. 빌드가 없는 단일 파일이라
+     호스트명으로 런타임에 가른다. 기본이 hidden이므로 조건이 안 맞으면 그냥 안 보인다
+     (게이트가 깨져도 공유용에 노출되지 않는 방향으로 실패한다).
+     localhost는 로컬 프리뷰 확인용으로 함께 허용. -->
+<script>
+(function () {
+  var h = location.hostname;
+  var internal = (h === 'wckmkt.github.io' || h === 'localhost' || h === '127.0.0.1');
+  var el = document.getElementById('hd-ad-link');
+  if (el && internal) el.hidden = false;
+})();
+</script>
 
 <!-- ── Period Tabs ── -->
 <div class="tabs">
