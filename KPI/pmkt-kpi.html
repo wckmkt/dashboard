@@ -581,6 +581,15 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
   var internal = (h === 'wckmkt.github.io' || h === 'localhost' || h === '127.0.0.1');
   var el = document.getElementById('hd-ad-link');
   if (el && internal) el.hidden = false;
+  // 2026-09-11: 대외비 — 팀 내부용(wckmkt.github.io)·localhost 외의 배포(타부서 공유용
+  // dashboard-bwk.pages.dev 등)에선 마감 코멘트(광고비·목표 등 내부 지표 포함)와
+  // ⑧ 광고비 효율 표를 숨긴다. display 직접 제어(CSS specificity 무관).
+  if (!internal) {
+    ['mc-sec-hd', 'mc-wrap', 'adeff-hd', 'adeff-card'].forEach(function (id) {
+      var e = document.getElementById(id);
+      if (e) e.style.display = 'none';
+    });
+  }
 })();
 </script>
 
@@ -611,8 +620,8 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
 <!-- ════════ 기본 대시보드 뷰 ════════ -->
 <div id="view-dash">
 
-  <!-- ① 마감 코멘트 -->
-  <div class="sec-hd" style="margin-top:16px">
+  <!-- ① 마감 코멘트 — 대외비(광고비 등 내부 지표 포함): 타부서 공유용에선 아래 게이트가 숨긴다. -->
+  <div class="sec-hd" id="mc-sec-hd" style="margin-top:16px">
     <h2 style="--before-color:#8b5cf6">마감 코멘트</h2>
   </div>
   <div class="mc-wrap" id="mc-wrap">
@@ -1000,12 +1009,12 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
     <div id="ch-mtd-note" style="font-size:10px;color:#94a3b8;margin-top:6px"></div>
   </div>
 
-  <!-- ⑧ 광고비 효율 (DA/SA) -->
-  <div class="sec-hd">
+  <!-- ⑧ 광고비 효율 (DA/SA) — 광고비 대외비: 타부서 공유용에선 아래 게이트가 숨긴다. -->
+  <div class="sec-hd" id="adeff-hd">
     <h2>광고비 효율</h2>
     <span class="sec-note" id="adeff-range"></span>
   </div>
-  <div class="card">
+  <div class="card" id="adeff-card">
     <table class="dt">
       <thead><tr>
         <th>매체</th><th>광고비(억)</th><th>세션단가</th><th>APP세션단가</th><th>가입CPA</th><th>첫구매CPA</th><th>ROAS</th>
