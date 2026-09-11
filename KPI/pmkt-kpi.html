@@ -7877,10 +7877,36 @@ function renderSummary(date) {
 const HOURS = Array.from({length:24}, (_,i) => `${i}시`);
 
 // 2026-09-11: DAU(3)·APP DAU(4)는 GA4 순간 활성자수라 최근 시간대가 집계 지연으로 덜 잡혀
-// 마지막 점이 절벽처럼 꺼진다(예: 9/11 11시 15,306 vs 10시 38,165). 실선은 신뢰 구간까지만
-// 긋고 최근 N시간은 연한 점선 '집계중(GA4)'으로 분리한다. BIZW 기반(총수주·순수주·주문건수)은
-// 실시간이라 지연이 없어 0. 상수라 GA4 지연이 바뀌면 숫자만 조정하면 된다.
-const FIELD_PROVISIONAL_LAG = { 3: 2, 4: 2 };
+// 마지막 점이 절벽처럼 꺼진다(예: 9/11 14시 11,016 vs 13시 34,106). 실선은 '완결된' 시각까지만
+// 긋고 미완 구간은 연한 점선 '집계중(GA4)'으로 분리한다. BIZW 기반(총수주·순수주·주문건수)은
+// 실시간이라 지연이 없어 대상 아님(값 false).
+//
+// 고정 N시간 트림은 미완 시간이 1~2개로 들쭉날쭉해 안 맞았다(예전 -2h가 멀쩡한 13시까지 잘랐다).
+// 대신 끝에서부터 '비교일(전주동요일 등) 같은 시각의 55% 미만'이면 미완으로 보고 실선에서 뺀다.
+// 비교일이 없으면 직전 시각의 55% 미만으로 판정, 그래도 애매하면 최소 1시간만 점선.
+const PROVISIONAL_FIELDS = { 3: true, 4: true };
+const PROVISIONAL_RATIO = 0.55;
+
+// 실선을 그을 마지막 '완결' 시각. rawCurH=마지막 데이터 시각.
+function solidEndHour(date, fieldIdx, todayRows, comps, rawCurH) {
+  if (!PROVISIONAL_FIELDS[fieldIdx] || date !== getLastDate() || rawCurH < 1) return rawCurH;
+  const cmpDate = [comps.lw, comps.lm, comps.ly].find(dd => dd && RAW[dd]);
+  const cmp = cmpDate ? getHourlyData(cmpDate) : null;
+  let h = rawCurH;
+  while (h >= 1) {
+    const tv = todayRows[h] ? todayRows[h][fieldIdx] : null;
+    if (tv == null) { h--; continue; }
+    let incomplete;
+    if (cmp && cmp[h] && cmp[h][fieldIdx] > 0) {
+      incomplete = tv < cmp[h][fieldIdx] * PROVISIONAL_RATIO;
+    } else {
+      const pv = todayRows[h - 1] ? todayRows[h - 1][fieldIdx] : null;
+      incomplete = (pv != null && pv > 0 && tv < pv * PROVISIONAL_RATIO);
+    }
+    if (incomplete) h--; else break;
+  }
+  return h;
+}
 
 function buildDatasets(date, fieldIdx) {
   const comps = getComparisonDates(date);
@@ -7889,9 +7915,8 @@ function buildDatasets(date, fieldIdx) {
 
   // 필드별 마지막 유효 시간 (오늘이면 진행 중인 시간 제외)
   const rawCurH = getCurrentFieldHour(date, fieldIdx);
-  // 오늘·해당 필드에만 지연 적용. curH = 실선 끝(신뢰 구간), rawCurH = 실제 마지막 데이터.
-  const lag = (date === getLastDate()) ? (FIELD_PROVISIONAL_LAG[fieldIdx] || 0) : 0;
-  const curH = (lag > 0 && rawCurH >= 0) ? Math.max(-1, rawCurH - lag) : rawCurH;
+  // curH = 실선 끝(완결된 마지막 시각), rawCurH = 실제 마지막 데이터. DAU/APP DAU만 완결 판정 적용.
+  const curH = solidEndHour(date, fieldIdx, todayRows, comps, rawCurH);
 
   // ── 실적 라인 (신뢰 구간까지 실선) ──
   const todayData = todayRows.map((r, h) => {
@@ -7911,8 +7936,8 @@ function buildDatasets(date, fieldIdx) {
     tension: 0.3, fill: true,
   });
 
-  // ── 집계중(GA4) — 실선 이후 지연 구간을 연한 점선으로 (curH에서 연결) ──
-  if (lag > 0 && rawCurH > curH) {
+  // ── 집계중(GA4) — 실선 이후 미완 구간을 연한 점선으로 (curH에서 연결) ──
+  if (PROVISIONAL_FIELDS[fieldIdx] && date === getLastDate() && rawCurH > curH) {
     const provData = todayRows.map((r, h) => {
       if (h < curH || h > rawCurH) return null;   // curH 포함 → 실선과 이어짐
       const v = r[fieldIdx];
