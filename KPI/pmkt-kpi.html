@@ -584,11 +584,20 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
   // 2026-09-11: 대외비 — 팀 내부용(wckmkt.github.io)·localhost 외의 배포(타부서 공유용
   // dashboard-bwk.pages.dev 등)에선 마감 코멘트(광고비·목표 등 내부 지표 포함)와
   // ⑧ 광고비 효율 표를 숨긴다. display 직접 제어(CSS specificity 무관).
+  // ⚠ 이 게이트는 <head>가 아니라 헤더 직후에서 파싱 중 실행된다 — mc-wrap·adeff는 이 아래에
+  //   있어 이 시점엔 아직 DOM에 없다. 그래서 요소 숨김은 DOM 완성 후로 미룬다(hd-ad-link는 위에 있어 즉시 OK).
   if (!internal) {
-    ['mc-sec-hd', 'mc-wrap', 'adeff-hd', 'adeff-card'].forEach(function (id) {
-      var e = document.getElementById(id);
-      if (e) e.style.display = 'none';
-    });
+    var hideConfidential = function () {
+      ['mc-sec-hd', 'mc-wrap', 'adeff-hd', 'adeff-card'].forEach(function (id) {
+        var e = document.getElementById(id);
+        if (e) e.style.display = 'none';
+      });
+    };
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', hideConfidential);
+    } else {
+      hideConfidential();
+    }
   }
 })();
 </script>
