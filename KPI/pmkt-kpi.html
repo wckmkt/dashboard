@@ -615,7 +615,7 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
     <div class="tab-divider"></div>
   </span>
   <script>if (new URLSearchParams(location.search).get('lever') === '1') document.getElementById('tab-lever-wrap').style.display = 'contents';</script>
-  <button class="tab-btn annual-tab" onclick="setAnnualView(this)">📅 연간</button>
+  <button class="tab-btn annual-tab" id="tab-annual" onclick="setAnnualView(this)">📅 연간</button>
   <div class="tab-divider"></div>
   <button class="tab-btn" id="tab-period" onclick="setPeriodView(this)">📆 기간조회</button>
   <div class="tab-divider"></div>
@@ -2522,11 +2522,32 @@ function renderDailyKPI() {
 
 
 const ALL_VIEWS = ['view-dash', 'view-weekly', 'view-lever', 'view-annual', 'view-ads', 'view-realtime', 'view-period'];
+// 2026-09-11: 탭별 URL 해시. 공유 링크(예: ...pmkt-kpi.html#realtime)로 특정 탭에 바로 진입.
+const VIEW_HASH = { 'view-dash':'daily', 'view-weekly':'weekly', 'view-annual':'yearly',
+                    'view-period':'period', 'view-realtime':'realtime', 'view-lever':'lever' };
+const HASH_BTN  = { daily:'tab-daily', weekly:'tab-weekly', yearly:'tab-annual',
+                    period:'tab-period', realtime:'tab-realtime', lever:'tab-lever' };
+
 function showView(viewId, el) {
   ALL_VIEWS.forEach(v => { document.getElementById(v).style.display = v === viewId ? '' : 'none'; });
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   if (el) el.classList.add('active');
+  // URL 해시 동기화 — replaceState라 히스토리 항목이 쌓이지 않고 hashchange도 안 터진다(루프 방지).
+  const hash = VIEW_HASH[viewId];
+  if (hash && location.hash.slice(1) !== hash) {
+    history.replaceState(null, '', location.pathname + location.search + '#' + hash);
+  }
 }
+
+// 해시에 맞는 탭을 연다(로드·뒤로가기·수동 해시 변경). 버튼 click을 재사용해 각 탭의 렌더까지 태운다.
+function applyHashTab() {
+  const btnId = HASH_BTN[location.hash.slice(1).toLowerCase()];
+  if (!btnId) return;
+  const btn = document.getElementById(btnId);
+  if (btn && !btn.classList.contains('active')) btn.click();
+}
+window.addEventListener('hashchange', applyHashTab);
+window.addEventListener('DOMContentLoaded', applyHashTab);
 
 function setAdsView(el) {
   showView('view-ads', el);
