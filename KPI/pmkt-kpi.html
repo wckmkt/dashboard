@@ -7109,6 +7109,7 @@ async function jwPhraseAnswer(question, computed) {
 let RAW = {};
 let DAILY = {}, DAILY_AD = {}, TRAFFIC = {}, CONV_CH = {}, DAILY_TGTS = {}, MONTHLY_TGTS = {}, REAL_MONTHLY = {};
 let CH_AD = {}, CH_AD_META = {};
+let SPIKE_CAUSE = {};   // {date: {'H:gmv'|'H:orders': '원인: ...'}} — 파이프라인이 PRS로 계산
 let BRAND_SALES = {};
 let CATEGORY_SALES = {};
 // 2026-09-03: 브랜드/카테고리 시트가 채널별 4개월 창으로 바뀌면서 추가된 채널 상세 섹션.
@@ -8119,18 +8120,23 @@ function renderRealtimeAnomaly(date) {
       const med = rtMedian(base);
       if (!med || med <= 0) continue;
       const dev = (tv - med) / med;
-      if (Math.abs(dev) >= RT_ANOM_THRESH) found.push({ h, label: f.label, dev });
+      if (Math.abs(dev) >= RT_ANOM_THRESH) found.push({ h, label: f.label, dev, mkey: f.idx === 1 ? 'gmv' : 'orders' });
     }
   }
   if (!found.length) { el.style.display = 'none'; return; }
   found.sort((a, b) => Math.abs(b.dev) - Math.abs(a.dev));
+  const causeMap = SPIKE_CAUSE[date] || {};
   const items = found.slice(0, 3).map(a => {
     const arrow = a.dev >= 0 ? '급증' : '급감';
     const pct = `${a.dev >= 0 ? '+' : ''}${Math.round(a.dev * 100)}%`;
-    return `${a.h}시 ${a.label} ${arrow} (${pct})`;
+    let line = `· ${a.h}시 ${a.label} ${arrow} (${pct})`;
+    // 급증 원인 브랜드(파이프라인이 PRS로 계산해 JSON에 심어둔 값). 급감엔 원인 없음.
+    const cause = a.dev > 0 ? causeMap[`${a.h}:${a.mkey}`] : null;
+    if (cause) line += `<br><span style="color:#64748b;margin-left:12px">└ ${cause}</span>`;
+    return line;
   });
   el.innerHTML = `<b>⚡ 시간대 특이사항</b> <span style="color:#94a3b8;font-size:11px">최근${RT_ANOM_LOOKBACK}일 동시간 대비</span><br>` +
-    items.map(t => `· ${t}`).join('<br>');
+    items.join('<br>');
   el.style.display = 'block';
 }
 
@@ -8708,6 +8714,7 @@ document.addEventListener('DOMContentLoaded', () => {
       REAL_MONTHLY = data.REAL_MONTHLY || {};
       CH_AD        = data.CH_AD        || {};
       CH_AD_META   = data.CH_AD_META   || {};
+      SPIKE_CAUSE  = data.SPIKE_CAUSE  || {};
       BRAND_SALES  = data.BRAND_SALES  || {};
       CATEGORY_SALES = data.CATEGORY_SALES || {};
       BRAND_BY_CH    = data.BRAND_BY_CH    || {};
