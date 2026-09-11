@@ -1505,6 +1505,11 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif
 
   <div class="summary-box" id="summary-box"></div>
 
+  <!-- 2026-09-11: 시간대 특이사항(급증/급감) — Teams ⑥와 같은 기준(최근7일 동시간 중앙값 대비 ±40%).
+       원인 브랜드는 PRS 서버 조회가 필요해 정적 페이지에선 못 넣는다(Teams 메시지에만). -->
+  <div id="rt-anomaly" style="display:none;margin:0 0 14px;padding:11px 14px;border-radius:10px;
+       background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);font-size:12.5px;color:#0f172a;"></div>
+
   <!-- KPI -->
   <div class="kpi-grid" id="kpi-grid"></div>
   
@@ -7852,15 +7857,24 @@ function renderSummary(date) {
 // ═══════════════════════════════════════════════
 const HOURS = Array.from({length:24}, (_,i) => `${i}시`);
 
+// 2026-09-11: DAU(3)·APP DAU(4)는 GA4 순간 활성자수라 최근 시간대가 집계 지연으로 덜 잡혀
+// 마지막 점이 절벽처럼 꺼진다(예: 9/11 11시 15,306 vs 10시 38,165). 실선은 신뢰 구간까지만
+// 긋고 최근 N시간은 연한 점선 '집계중(GA4)'으로 분리한다. BIZW 기반(총수주·순수주·주문건수)은
+// 실시간이라 지연이 없어 0. 상수라 GA4 지연이 바뀌면 숫자만 조정하면 된다.
+const FIELD_PROVISIONAL_LAG = { 3: 2, 4: 2 };
+
 function buildDatasets(date, fieldIdx) {
   const comps = getComparisonDates(date);
   const datasets = [];
   const todayRows = getHourlyData(date);
 
   // 필드별 마지막 유효 시간 (오늘이면 진행 중인 시간 제외)
-  const curH = getCurrentFieldHour(date, fieldIdx);
+  const rawCurH = getCurrentFieldHour(date, fieldIdx);
+  // 오늘·해당 필드에만 지연 적용. curH = 실선 끝(신뢰 구간), rawCurH = 실제 마지막 데이터.
+  const lag = (date === getLastDate()) ? (FIELD_PROVISIONAL_LAG[fieldIdx] || 0) : 0;
+  const curH = (lag > 0 && rawCurH >= 0) ? Math.max(-1, rawCurH - lag) : rawCurH;
 
-  // ── 실적 라인 ──
+  // ── 실적 라인 (신뢰 구간까지 실선) ──
   const todayData = todayRows.map((r, h) => {
     if (h > curH) return null;
     const v = r[fieldIdx];
@@ -7877,6 +7891,27 @@ function buildDatasets(date, fieldIdx) {
     spanGaps: false,
     tension: 0.3, fill: true,
   });
+
+  // ── 집계중(GA4) — 실선 이후 지연 구간을 연한 점선으로 (curH에서 연결) ──
+  if (lag > 0 && rawCurH > curH) {
+    const provData = todayRows.map((r, h) => {
+      if (h < curH || h > rawCurH) return null;   // curH 포함 → 실선과 이어짐
+      const v = r[fieldIdx];
+      return (v !== null && v !== undefined) ? v : null;
+    });
+    datasets.push({
+      label: '집계중(GA4)',
+      data: provData,
+      borderColor: 'rgba(59,130,246,0.35)',
+      backgroundColor: 'transparent',
+      borderWidth: 1.5,
+      borderDash: [2, 3],
+      pointRadius: provData.map((v,h) => v !== null && h === rawCurH ? 3 : 0),
+      pointBackgroundColor: 'rgba(59,130,246,0.35)',
+      spanGaps: false,
+      tension: 0.3, fill: false,
+    });
+  }
 
   // ── 예상마감 추이 (현재시간 이후, 비교일 평균 패턴 × 스케일) ──
   const compDates = [comps.lw, comps.lm, comps.ly].filter(d => d && RAW[d]);
@@ -8047,6 +8082,58 @@ function buildCancelRateDatasets(date) {
   return datasets;
 }
 
+// 2026-09-11: 시간대 특이사항(급증/급감). Teams ⑥ 로직을 브라우저에서 재현 —
+// 총수주(RAW idx1)·주문건수(idx0)를 최근 7일 동시간 중앙값과 비교, |편차|>=40%면 표시(상위 3).
+// 원인 브랜드는 PRS 서버 조회라 여기선 못 붙인다(Teams 전용).
+const RT_ANOM_LOOKBACK = 7;
+const RT_ANOM_THRESH = 0.4;
+const RT_ANOM_FIELDS = [{ idx: 1, label: '총수주' }, { idx: 0, label: '주문건수' }];
+
+function rtMedian(arr) {
+  if (!arr.length) return null;
+  const s = [...arr].sort((a, b) => a - b), m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+function renderRealtimeAnomaly(date) {
+  const el = document.getElementById('rt-anomaly');
+  if (!el) return;
+  // 오늘(최신일)만 — 과거일 조회 시엔 숨김
+  const rows = (date === getLastDate()) ? RAW[date] : null;
+  if (!rows) { el.style.display = 'none'; return; }
+
+  const found = [];
+  for (let h = 0; h < 24; h++) {
+    const r = rows[h];
+    if (!r) continue;
+    for (const f of RT_ANOM_FIELDS) {
+      const tv = r[f.idx];
+      if (tv == null || tv <= 0) continue;
+      const base = [];
+      for (let d = 1; d <= RT_ANOM_LOOKBACK; d++) {
+        const cr = RAW[getDateByOffset(date, -d)];
+        const cv = cr && cr[h] ? cr[h][f.idx] : null;
+        if (cv != null && cv > 0) base.push(cv);
+      }
+      if (base.length < 3) continue;
+      const med = rtMedian(base);
+      if (!med || med <= 0) continue;
+      const dev = (tv - med) / med;
+      if (Math.abs(dev) >= RT_ANOM_THRESH) found.push({ h, label: f.label, dev });
+    }
+  }
+  if (!found.length) { el.style.display = 'none'; return; }
+  found.sort((a, b) => Math.abs(b.dev) - Math.abs(a.dev));
+  const items = found.slice(0, 3).map(a => {
+    const arrow = a.dev >= 0 ? '급증' : '급감';
+    const pct = `${a.dev >= 0 ? '+' : ''}${Math.round(a.dev * 100)}%`;
+    return `${a.h}시 ${a.label} ${arrow} (${pct})`;
+  });
+  el.innerHTML = `<b>⚡ 시간대 특이사항</b> <span style="color:#94a3b8;font-size:11px">최근${RT_ANOM_LOOKBACK}일 동시간 대비</span><br>` +
+    items.map(t => `· ${t}`).join('<br>');
+  el.style.display = 'block';
+}
+
 function renderCharts(date) {
   renderChart('chart-revenue', date, 1, v => fmt_rev(v));
   renderChart('chart-netrev',  date, 2, v => fmt_rev(v));
@@ -8069,6 +8156,7 @@ function render() {
   
   renderSummary(date);
   renderKPI(date);
+  renderRealtimeAnomaly(date);
   renderFunnelDiagnosis(date);
   renderCharts(date);
   renderCompareOutlierNote(date);
